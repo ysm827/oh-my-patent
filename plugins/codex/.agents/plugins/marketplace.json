@@ -1,0 +1,20 @@
+{
+  "name": "oh-my-patent-local",
+  "interface": {
+    "displayName": "oh-my-patent Local"
+  },
+  "plugins": [
+    {
+      "name": "oh-my-patent",
+      "source": {
+        "source": "local",
+        "path": "./plugins/oh-my-patent"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

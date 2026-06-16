@@ -1,0 +1,35 @@
+{
+  "name": "oh-my-patent",
+  "version": "0.1.0",
+  "description": "Patent disclosure drafting workflow with specialist prompts, commands, and brainstorm path tracking for Codex.",
+  "author": {
+    "name": "oh-my-patent"
+  },
+  "homepage": "https://github.com/openai/codex",
+  "repository": "https://github.com/openai/codex",
+  "license": "MIT",
+  "keywords": [
+    "patent",
+    "disclosure",
+    "workflow",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "oh-my-patent",
+    "shortDescription": "Patent disclosure drafting workflow for Codex",
+    "longDescription": "Generate patent disclosure projects with prior-art search, brainstorming, drafting, review, QA loops, and diagram generation.",
+    "developerName": "oh-my-patent",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "新建一个专利交底书项目",
+      "执行专利检索并生成交底书",
+      "审核当前专利交底书"
+    ],
+    "brandColor": "#0F766E"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "oh-my-patent",
+  "version": "0.1.0",
+  "description": "Patent disclosure drafting workflow with brainstorm path tracking",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "oh-my-patent": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "npx tsc --noEmit"
+  },
+  "keywords": [
+    "patent",
+    "ai",
+    "brainstorm",
+    "cli"
+  ],
+  "author": "oh-my-patent contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zengbods/oh-my-patent.git"
+  },
+  "homepage": "https://github.com/zengbods/oh-my-patent#readme",
+  "bugs": {
+    "url": "https://github.com/zengbods/oh-my-patent/issues"
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "plugin.jsonc",
+    "opencode.jsonc",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.14",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  },
+  "dependencies": {
+    "ink": "^7.0.2",
+    "react": "^19.2.6"
+  }
+}

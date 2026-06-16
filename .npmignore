@@ -1,0 +1,25 @@
+# Global npm package ignore file
+# Notice: These entries apply to 'npm pack' / 'npm publish' only.
+# We intentionally do NOT include 'dist/' or '*.d.ts' here so that the compiled
+# code is included in the final tarball even though .gitignore excludes them.
+
+node_modules/
+coverage/
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+.vite/
+*.cache
+
+# Development-only files that should not ship
+.vscode/
+.idea/
+*.test.ts
+*.test.js
+tests/
+
+# Do not ship development config files that are only relevant to the core repo
+findings.md
+task_plan.md
+progress.md

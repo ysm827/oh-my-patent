@@ -1,0 +1,37 @@
+node_modules/
+dist/
+*.js
+*.d.ts
+!*.test.ts
+!jest.config.*
+coverage/
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+.vite/
+*.cache
+
+# Test temporary directories
+.test-*
+.audit-temp/
+.audit-tmp/
+.audit_temp/
+.audit_tmp/
+*-temp/
+*-tmp/
+
+# Development temporary files
+findings.md
+task_plan.md
+progress.md
+
+# Audit reports directory (keep locally for reference, don't commit)
+.audit-reports/
+
+# npm package files
+*.tgz
+
+# Accidentally created directories (from CLI testing)
+--help/
+--*/

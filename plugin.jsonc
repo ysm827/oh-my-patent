@@ -1,0 +1,179 @@
+{
+  "name": "oh-my-patent",
+  "version": "0.1.0",
+  "agents": [
+    {
+      "id": "archimedes",
+      "name": "Archimedes",
+      "description": "专利主编排器，协调全流程并管理头脑风暴路径",
+      "file": "src/agents/archimedes.md"
+    },
+    {
+      "id": "patent-innovation-architect",
+      "name": "Patent Innovation Architect",
+      "description": "TRIZ方法生成创新概念与候选方案",
+      "file": "src/agents/patent-innovation-architect.md"
+    },
+    {
+      "id": "patent-landscape-analyst",
+      "name": "Patent Landscape Analyst",
+      "description": "聚合多源专利检索结果，生成技术全景",
+      "file": "src/agents/patent-landscape-analyst.md"
+    },
+    {
+      "id": "patentability-evaluator",
+      "name": "Patentability Evaluator",
+      "description": "评估新颖性、创造性和实用性，含评分阈值判断",
+      "file": "src/agents/patentability-evaluator.md"
+    },
+    {
+      "id": "patent-brainstorm-moderator",
+      "name": "Patent Brainstorm Moderator",
+      "description": "协调多轮头脑风暴代理辩论，执行评分阈值决策",
+      "file": "src/agents/patent-brainstorm-moderator.md"
+    },
+    {
+      "id": "patent-path-recorder",
+      "name": "Patent Path Recorder",
+      "description": "持久化头脑风暴路径节点、边、创新点快照到 .brainstorm/",
+      "file": "src/agents/patent-path-recorder.md"
+    },
+    {
+      "id": "patent-security-engineer",
+      "name": "Patent Security Engineer",
+      "description": "识别安全漏洞和侧信道风险",
+      "file": "src/agents/patent-security-engineer.md"
+    },
+    {
+      "id": "patent-product-compliance-analyst",
+      "name": "Patent Product Compliance Analyst",
+      "description": "评估法规和隐私合规性",
+      "file": "src/agents/patent-product-compliance-analyst.md"
+    },
+    {
+      "id": "patent-disclosure-writer",
+      "name": "Patent Disclosure Writer",
+      "description": "生成专利交底书文档 (MAIN.md)",
+      "file": "src/agents/patent-disclosure-writer.md"
+    },
+    {
+      "id": "patent-technical-responder",
+      "name": "Patent Technical Responder",
+      "description": "对审核意见提供技术答复",
+      "file": "src/agents/patent-technical-responder.md"
+    },
+    {
+      "id": "patent-disclosure-reviewer",
+      "name": "Patent Disclosure Reviewer",
+      "description": "审核法律合规性和撰写质量",
+      "file": "src/agents/patent-disclosure-reviewer.md"
+    },
+    {
+      "id": "patent-adversarial-examiner",
+      "name": "Patent Adversarial Examiner",
+      "description": "对抗性审查，模拟审查员质疑",
+      "file": "src/agents/patent-adversarial-examiner.md"
+    },
+    {
+      "id": "patent-diagram-generator",
+      "name": "Patent Diagram Generator",
+      "description": "读取交底书内容，生成 Mermaid/PlantUML 专利附图并渲染输出",
+      "file": "src/agents/patent-diagram-generator.md"
+    }
+  ],
+  "skills": [
+    {
+      "id": "prior-art-search",
+      "name": "Prior Art Search",
+      "file": "src/skills/prior-art-search/SKILL.md"
+    },
+    {
+      "id": "evidence-card",
+      "name": "Evidence Card",
+      "file": "src/skills/evidence-card/SKILL.md"
+    },
+    {
+      "id": "jurisdiction",
+      "name": "Jurisdiction Rules",
+      "file": "src/skills/jurisdiction/SKILL.md"
+    },
+    {
+      "id": "disclosure-template",
+      "name": "Disclosure Template",
+      "file": "src/skills/disclosure-template/SKILL.md"
+    },
+    {
+      "id": "quality-gate",
+      "name": "Quality Gate",
+      "file": "src/skills/quality-gate/SKILL.md"
+    },
+    {
+      "id": "brainstorm-path",
+      "name": "Brainstorm Path",
+      "file": "src/skills/brainstorm-path/SKILL.md"
+    }
+  ],
+  "commands": [
+    {
+      "id": "archimedes",
+      "command": "/archimedes",
+      "description": "启动专利主编排器（Archimedes），自动路由全流程",
+      "file": "src/commands/archimedes.md"
+    },
+    {
+      "id": "patent-new",
+      "command": "/patent-new",
+      "description": "新建专利项目",
+      "file": "src/commands/patent-new.md"
+    },
+    {
+      "id": "patent-search",
+      "command": "/patent-search",
+      "description": "专利检索",
+      "file": "src/commands/patent-search.md"
+    },
+    {
+      "id": "patent-draft",
+      "command": "/patent-draft",
+      "description": "生成交底书",
+      "file": "src/commands/patent-draft.md"
+    },
+    {
+      "id": "patent-review",
+      "command": "/patent-review",
+      "description": "审核交底书",
+      "file": "src/commands/patent-review.md"
+    },
+    {
+      "id": "patent-status",
+      "command": "/patent-status",
+      "description": "查看项目状态",
+      "file": "src/commands/patent-status.md"
+    },
+    {
+      "id": "brainstorm-resume",
+      "command": "/brainstorm-resume",
+      "description": "查看头脑风暴路径、从节点恢复、分支探索、恢复已放弃创新点",
+      "file": "src/commands/brainstorm-resume.md"
+    },
+    {
+      "id": "patent-diagram",
+      "command": "/patent-diagram",
+      "description": "生成、重渲染或查看专利附图",
+      "file": "src/commands/patent-diagram.md"
+    }
+  ],
+  "config": {
+    "jurisdiction": {
+      "type": "string",
+      "default": "CN",
+      "enum": ["CN", "US", "PCT"],
+      "description": "默认法域"
+    },
+    "projectDir": {
+      "type": "string",
+      "default": "./projects",
+      "description": "项目存储目录"
+    }
+  }
+}

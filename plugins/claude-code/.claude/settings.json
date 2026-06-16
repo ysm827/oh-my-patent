@@ -1,0 +1,77 @@
+{
+  "mcpServers": {
+    "google_scholar": {
+      "command": "python",
+      "args": [
+        "D:\\patents\\.mcp\\servers\\Google-Scholar-MCP-Server\\google_scholar_server.py"
+      ]
+    },
+    "uspto_patent": {
+      "command": "python",
+      "args": [
+        "-m",
+        "uv",
+        "--directory",
+        "D:\\patents\\.mcp\\servers\\patent_mcp_server",
+        "run",
+        "patent-mcp-server"
+      ],
+      "env": {
+        "USPTO_API_KEY": "",
+        "PATENTSVIEW_API_KEY": ""
+      }
+    },
+    "mcp_scholarly": {
+      "command": "python",
+      "args": [
+        "-m",
+        "uv",
+        "--directory",
+        "D:\\patents\\.mcp\\servers\\mcp-scholarly",
+        "run",
+        "mcp-scholarly"
+      ]
+    },
+    "semantic_scholar": {
+      "command": "python",
+      "args": [
+        "-m",
+        "uv",
+        "--directory",
+        "D:\\patents\\.mcp\\servers\\semantic-scholar-fastmcp-mcp-server",
+        "run",
+        "python",
+        "run.py"
+      ],
+      "env": {
+        "SEMANTIC_SCHOLAR_API_KEY": "",
+        "SEMANTIC_SCHOLAR_ENABLE_HTTP_BRIDGE": "0"
+      }
+    },
+    "mcp_server_office": {
+      "command": "D:\\patents\\.mcp\\servers\\mcp-server-office\\.venv\\Scripts\\mcp-server-office.exe",
+      "args": []
+    },
+    "sequential_thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    },
+    "eslint": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@eslint/mcp"
+      ]
+    }
+  }
+}
