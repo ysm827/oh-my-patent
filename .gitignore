@@ -25,6 +25,8 @@ Thumbs.db
 findings.md
 task_plan.md
 progress.md
+.claude/
+.workbuddy/
 
 # Audit reports directory (keep locally for reference, don't commit)
 .audit-reports/

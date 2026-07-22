@@ -48,9 +48,16 @@ export class ArchimedesOrchestrator {
         return { action: 'NO_PROJECT', message: '请先创建项目' };
 
       case IntentType.SEARCH:
+        if (context.existingState?.current_stage === 'BRAINSTORM_R1') {
+          return {
+            action: 'RE_SEARCH',
+            extractedData: intent.extracted as Record<string, string> | undefined,
+            message: '检测到补检请求，回退到 RESEARCH 阶段'
+          };
+        }
         return {
           action: 'EXECUTE_SEARCH',
-          extractedData: intent.extracted
+          extractedData: intent.extracted as Record<string, string> | undefined
         };
 
       case IntentType.BRAINSTORM:

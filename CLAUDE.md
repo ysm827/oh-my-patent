@@ -1,290 +1,127 @@
-# oh-my-patent
+# CLAUDE.md
 
-**Your idea → a full patent disclosure document** — without herding 11 AI agents into a task queue.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Overview
+## What this is
 
-oh-my-patent is a patent disclosure automation toolkit that orchestrates 11 specialized AI agents to transform a technical idea into a complete patent disclosure document. It handles the entire lifecycle: prior art search, brainstorming, patentability assessment, drafting, review, and figure generation.
+oh-my-patent is a CLI tool that orchestrates 11 specialized AI agents (defined as markdown prompts in `src/agents/`) to turn a technical idea into a complete patent disclosure document. The CLI itself does **not** run the agents — it manages the state, decision path, diagrams, and adapter configs that the agents (running in the user's editor) read and write.
 
-## Project Structure
+The agent prompts live in `src/agents/*.md` and are consumed by editors via adapters (`.claude/` for Claude Code, `.codex/` for Codex). The TypeScript code is the runtime bridge those agents call.
 
-```
-oh-my-patent/
-├── src/
-│   ├── agents/           # 13 agent definitions (.md + routing)
-│   │   ├── archimedes.md           # Primary orchestrator
-│   │   ├── patent-landscape-analyst.md
-│   │   ├── patent-innovation-architect.md
-│   │   ├── patentability-evaluator.md
-│   │   └── ...
-│   ├── commands/         # CLI command implementations
-│   │   ├── path-commands.ts        # Brainstorm path management
-│   │   ├── adapt-commands.ts       # Adapter generation
-│   │   └── diagram-commands.ts     # Figure rendering
-│   ├── core/             # Core engine modules
-│   │   ├── brainstorm-path.ts      # Decision path tracking
-│   │   ├── state-manager.ts        # Workflow state machine
-│   │   ├── diagram-renderer.ts     # Mermaid/PlantUML rendering
-│   │   └── workflow.ts             # Stage orchestration
-│   ├── adapters/         # Tool adapters (Claude Code, Codex)
-│   │   ├── claude-code-adapter.ts
-│   │   └── codex-adapter.ts
-│   ├── skills/           # Reusable skills
-│   │   ├── jurisdiction/           # Patent jurisdiction rules
-│   │   ├── quality-gate/           # Threshold validation
-│   │   └── prior-art-search/       # MCP-based search
-│   └── tui/              # Terminal UI (Ink + React)
-├── tests/
-│   ├── unit/             # Unit tests (12 files)
-│   ├── integration/      # Integration tests (5 files, includes CLI)
-│   └── e2e/              # End-to-end tests (plugin loading)
-├── docs/
-│   └── superpowers/
-│       └── specs/        # PRD and design specs
-├── plugin.jsonc          # Plugin metadata (agents/commands/skills)
-├── README.md             # English documentation
-├── README.zh-CN.md       # Chinese documentation
-├── CONTRIBUTING.md       # Contribution guidelines
-└── LICENSE               # MIT License
-```
-
-## Key Modules
-
-### Core Engine
-
-- **brainstorm-path.ts**: Decision path tracking with DAG structure
-  - Supports rollback, branching, and innovation history
-  - Stores in `.brainstorm/` directory
-
-- **state-manager.ts**: Workflow state machine
-  - 10-stage pipeline: INIT → RESEARCH → BRAINSTORM → DRAFT → QA → FINALIZE
-  - Atomic persistence to `.patent/state.json`
-
-- **diagram-renderer.ts**: Automatic figure generation
-  - Mermaid and PlantUML dual-engine support
-  - Auto-inserts figures into MAIN.md
-
-- **workflow.ts**: Stage orchestration
-  - Coordinates agent handoffs
-  - Manages context passing between stages
-
-### Adapters
-
-- **Claude Code Adapter**: Generates `.claude/` configuration
-  - 13 agents as sub-agents
-  - 8 commands with frontmatter permissions
-  - CLAUDE.md project documentation
-
-- **Codex Adapter**: Generates `.codex/` configuration
-  - 13 agents as skills
-  - Commands as custom actions
-  - AGENTS.md project documentation
-
-### CLI Commands
-
-- `path init/overview/branch/restore`: Brainstorm path management
-- `adapt setup/generate/uninstall`: Tool adapter lifecycle
-- `diagram render/insert`: Figure generation pipeline
-- `state show/reset/export`: Workflow state inspection
-
-## Agent System
-
-### Primary Orchestrator
-
-**archimedes.md** routes tasks to 11 specialist agents:
-
-1. **patent-landscape-analyst**: Prior art search via MCP
-2. **patent-innovation-architect**: Generate innovation candidates
-3. **patentability-evaluator**: Assess novelty/creativity/practicality
-4. **patent-brainstorm-moderator**: Facilitate multi-round ideation
-5. **patent-disclosure-writer**: Draft technical disclosure
-6. **patent-disclosure-reviewer**: QA review
-7. **patent-technical-responder**: Address review issues
-8. **patent-adversarial-examiner**: Adversarial novelty check
-9. **patent-security-engineer**: Security/cryptography review
-10. **patent-product-compliance-analyst**: Standards compliance
-11. **patent-path-recorder**: Decision path documentation
-
-### Routing Logic
-
-Archimedes reads `.patent/state.json` and routes to the appropriate agent:
-- Stage `INIT` → No agent (user provides topic)
-- Stage `RESEARCH` → patent-landscape-analyst
-- Stage `BRAINSTORM_R1` → patent-innovation-architect + patentability-evaluator
-- Stage `DRAFT` → patent-disclosure-writer
-- Stage `QA_LOOP` → patent-disclosure-reviewer → patent-technical-responder
-
-## Development Workflow
-
-### Setup
+## Commands
 
 ```bash
+npm run build        # tsc → dist/  (required before running the CLI from source)
+npm test             # vitest run — full suite
+npm test:watch       # vitest in watch mode
+npm test tests/unit/        # unit tests only
+npm test tests/integration/cli-commands.test.ts   # single test file
+npm run lint         # tsc --noEmit (the project uses strict mode, zero errors expected)
+
+node dist/cli.js     # run the CLI from a source build (the published bin is `oh-my-patent`)
+npx -p . oh-my-patent  # alternative way to run from local build
+```
+
+The CLI has four domains — `path`, `diagram`, `adapt`, `tui` — each with subcommands. See `node dist/cli.js --help` for the full reference.
+
+### Quick Start for Local Development
+
+```bash
+git clone https://github.com/zengbods/oh-my-patent
+cd oh-my-patent
 npm install
 npm run build
-npm test
+node dist/cli.js adapt setup --workspace-dir /path/to/test/project
 ```
 
-### Testing
+## Architecture
 
-- **Unit tests**: Fast, isolated module tests
-- **Integration tests**: Multi-module interactions (includes CLI tests)
-- **E2E tests**: Full plugin loading and compilation
+### Two-layer model: definitions vs. engine
 
-```bash
-npm test                          # All tests
-npm test tests/unit/             # Unit tests only
-npm test tests/integration/cli-commands.test.ts  # CLI tests
-```
+- **Orchestration layer** (`plugin.jsonc`, `opencode.jsonc`, `src/agents/*.md`, `src/skills/*/SKILL.md`, `src/commands/*.md`): tool-agnostic definitions of agents, skills, and commands. Pure data and prompt text.
+- **Engine layer** (`src/core/`, `src/cli.ts`, `src/commands/*.ts`): the TypeScript runtime that operates on `.brainstorm/`, `.patent/`, `figures/`, and `references/` directories inside a user's patent project.
 
-### Code Quality
+The `src/adapters/` layer converts orchestration definitions into tool-specific configs (Claude Code's `.claude/agents/`, Codex's `.codex/skills/`, etc.). `adapters/types.ts` defines the `PortableDef` canonical format; `adapters/loader.ts` parses `plugin.jsonc` + the markdown files into it; `adapters/claude/` and `adapters/codex/` implement `ToolAdapter`.
 
-- TypeScript strict mode (zero errors)
-- 87 tests (100% passing)
-- Vitest for testing
-- No linting errors
+### Workflow state machine (`src/core/state.ts`, `src/core/workflow.ts`)
 
-## File System Layout (Project Usage)
-
-When a user runs oh-my-patent in their project:
+10 stages with explicit transitions:
 
 ```
-my-patent-project/
-├── .brainstorm/          # Decision path tracking (git-tracked)
-│   ├── path.json         # Main decision graph
-│   ├── nodes/            # Per-round decision nodes
-│   └── snapshots/        # Innovation history
-├── .patent/              # Workflow state (git-tracked)
-│   └── state.json        # Current stage and artifacts
-├── references/           # Agent outputs (git-tracked)
-│   ├── landscape.md      # Prior art search results
-│   └── *.md              # Agent outputs with naming convention
-├── figures/              # Generated diagrams (git-tracked)
-│   ├── *.png
-│   ├── *.svg
-│   └── figures-manifest.json
-├── MAIN.md               # Final disclosure document (git-tracked)
-└── conversation.md       # Chronological log (git-tracked)
+INIT → RESEARCH → BRAINSTORM_R1 → BRAINSTORM_R2 → DRAFT → DIAGRAM_DRAFT → QA_LOOP → FINAL_REVIEW → DIAGRAM_FINAL → DONE
 ```
 
-## Audit Reports Directory
+Notable: `DRAFT → DIAGRAM_DRAFT → QA_LOOP` (figures drafted before QA), `QA_LOOP → FINAL_REVIEW | DRAFT` (QA can loop back to draft), `FINAL_REVIEW → DIAGRAM_FINAL | QA_LOOP`.
 
-### `.audit-reports/`
+State is persisted atomically to `<project>/.patent/state.json` (temp file + rename in `state-manager.ts`). Validation rejects unknown stages and jurisdictions.
 
-This directory contains internal audit and release documentation generated during the v0.1.0 release process. These files are **kept locally for reference but not committed to git**.
+### Decision path tracking (`src/core/brainstorm-path.ts`, `src/core/path-persistence.ts`, `src/core/path-graph.ts`)
 
-**Contents**:
-- Initial audit reports (code/tests/docs analysis)
-- P0/P1/P2 issue fix verification reports
-- Release readiness confirmations
-- .gitignore cleanup documentation
+A DAG of brainstorm rounds stored in `<project>/.brainstorm/`:
+- `path.json` — metadata, edges, current node, final decision
+- `nodes/round-{n}.json` — per-round scores, innovations, agent outputs, decisions
+- `snapshots/round-{n}-innovations.json` — innovation history snapshots
+- `branches/{branchId}/` — forked node copies for alternative explorations
 
-**Why not in git?**
-- These are process artifacts, not user-facing documentation
-- Useful for maintainers but not needed by users
-- Keeps the repository focused on code and user documentation
+Supports forking (`path branch --from-node`), reviving abandoned innovations (`path restore`), and threshold-based exit decisions. Writes are atomic (temp + rename). `path-graph.ts` handles the forking algorithms.
 
-**Location**: Ignored via `.gitignore` rule: `.audit-reports/`
+### Threshold model (`src/core/threshold-config.ts`)
 
-If you're a maintainer and need to reference these reports, they remain in your local working directory.
+Quantitative gates for brainstorm exit. Defaults (in `DEFAULT_THRESHOLD_CONFIG`):
+- `passToDraft: 8.5` — minimum weighted composite score
+- `redLines.novelty: 6.0`, `redLines.creativity: 6.0` — single-dimension floors
+- `forceIteration.maxRounds: 3`, `minImprovement: 0.3`
 
-## Release Process
+Note: the README mentions "Novelty ≥ 7" and "max 6 rounds" — the actual code defaults differ. Trust the code.
 
-### Version Management
+### Diagram pipeline (`src/core/diagram-renderer.ts`, `src/core/diagram-inserter.ts`)
 
-- Follow [Semantic Versioning](https://semver.org/)
-- Update `package.json` version
-- Update CHANGELOG.md (if exists)
-- Run full test suite
+Renders Mermaid/PlantUML source to SVG+PNG into `<project>/figures/`, then rewrites MAIN.md figure references in place. `diagram-renderer.ts` shells out to the Mermaid CLI and a PlantUML server. `figures-manifest.json` tracks rendered figures.
 
-### Pre-Release Checklist
+**External dependencies**: Requires `mmdc` (Mermaid CLI) and a PlantUML server for rendering. These are not bundled — the system shells out to them.
 
-1. ✅ All tests passing (`npm test`)
-2. ✅ TypeScript compiles (`npm run build`)
-3. ✅ No type errors (`npm run lint`)
-4. ✅ Package content correct (`npm pack --dry-run`)
-5. ✅ README and docs up to date
-6. ✅ LICENSE file exists
+### CLI entry (`src/cli.ts`)
 
-### Publishing
+A single dispatcher with four domains. Uses `getPluginDir()` (ESM `import.meta.url` resolution) to locate the package root — this works for global installs, `npm link`, and `node dist/cli.js`. The `adapt install` path also copies agent/command files to `~/.claude-best/` so they load regardless of where Claude Code starts.
 
-```bash
-npm publish              # Publish to npm
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin master --tags
-```
+## File naming conventions (project runtime)
 
-## Architecture Highlights
+When a user runs oh-my-patent in their patent project, agents write outputs to `references/` with strict naming:
+- `references/landscape_{topic_slug}.md` — prior art search (main landscape)
+- `references/landscape_round{r}.md` — multi-round search results
+- `references/feature-matrix_{topic_slug}.md` — feature comparison matrix
+- `references/problem-map_{topic_slug}.md` — technical problem mapping
+- `references/brainstorm_round{r}_{agent-id}.md`
+- `references/argue_round{r}_{agent-id}.md`
 
-### Decision Path System
+`.brainstorm/` and `.patent/` are git-tracked; they are the auditable record of decisions.
 
-- **DAG structure**: Nodes are brainstorm rounds, edges are transformations
-- **Transformations**: refine, merge, split, pivot
-- **Branching**: Explore alternative directions without losing history
-- **Rollback**: Return to any previous round
+## Agent invocation
 
-### Threshold Model
+Agents are invoked by the user's editor (via `archimedes` routing), not by the CLI. Archimedes reads `.patent/state.json` and dispatches to the appropriate specialist agent based on `current_stage`. The agent prompts in `src/agents/*.md` are the source of truth for what each agent does.
 
-Quantitative decision gates:
-- Novelty threshold: ≥7/10
-- Creativity threshold: ≥7/10
-- Composite score threshold: ≥7/10
-- Max rounds: ≤6 (configurable)
+To invoke a specialist programmatically (in a custom integration), use the Agent tool with `subagent_type: "<agent-id>"`.
 
-Exit conditions:
-- Thresholds met + 2 consecutive clean QA rounds
-- Max rounds reached (force pass or abandon)
+## Conventions worth knowing
 
-### Safe Uninstall
+- **TypeScript strict mode**, ESM (`"type": "module"`), `moduleResolution: "bundler"`. Imports between source files use explicit `.js` extensions (e.g. `from './core/state.js'`) even though the source is `.ts` — this is required by the ESM + bundler-resolution setup.
+- **TSX/JSX**: `tui/` uses Ink+React. `tsconfig.json` sets `jsx: "react-jsx"`.
+- **Atomic writes**: state and path persistence write to a temp file then rename. Don't bypass this pattern.
+- **Safe uninstall**: adapter uninstall reads from manifest files (`.claude/manifest.json`, `.codex/manifest.json`) and removes only the exact paths that were generated — never `readdir + unlink` traversal.
+- **Patent disclosure writing style** (when editing MAIN.md or agent prompts that produce disclosure content): headings use `#` for document title only, `##`/`###` for sections; formulas use Word-compatible linear form (`$S_(load)$` not `$S_{\mathrm{load}}$`); avoid `\operatorname`, `\mathrm`, `\left`, `\right`, `\!`; keep image tags and captions on separate lines; follow the standard template (sections 零 through 十一); references use `[R#]` notation.
+- **Jurisdiction**: default `CN`; supported `CN`, `US`, `PCT` (see `plugin.jsonc` config and `src/skills/jurisdiction/`).
 
-Adapter uninstall only removes files that were auto-generated:
-- Reads from manifest files (`.claude/manifest.json`, `.codex/manifest.json`)
-- No `readdir` traversal
-- No accidental deletion of user files
+## Testing Strategy
 
-## Technology Stack
+- Unit tests in `tests/unit/` cover core logic (state, path tracking, thresholds, diagram rendering)
+- Integration tests in `tests/integration/` test CLI commands end-to-end
+- Run `npm test` before committing — the project expects zero test failures
+- Test files mirror source structure: `tests/unit/core/state.test.ts` tests `src/core/state.ts`
 
-- **Language**: TypeScript (strict mode)
-- **Runtime**: Node.js 18+
-- **Testing**: Vitest
-- **CLI**: Commander.js
-- **TUI**: Ink (React for terminal)
-- **Diagram**: Mermaid CLI, PlantUML server
+## Common Gotchas
 
-## Quality Metrics (v0.1.0)
-
-- **Lines of Code**: 7,701 (production)
-- **Test Coverage**: 87 tests, 100% passing
-- **Test Types**: 12 unit + 5 integration + 1 e2e
-- **Documentation Quality**: 9.5/10
-- **Code Quality**: 9.0/10
-- **Release Readiness**: 9.3/10
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-- Code style guidelines
-- Testing requirements
-- Commit message conventions
-- Pull request process
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file.
-
-## Acknowledgments
-
-- [LINUX DO Community](https://linux.do/) - Valuable feedback and support
-- All contributors who helped improve this project
-- The open-source community for amazing tools and libraries
-
-## Links
-
-- **npm**: https://www.npmjs.com/package/oh-my-patent
-- **GitHub**: https://github.com/zengbods/oh-my-patent
-- **Issues**: https://github.com/zengbods/oh-my-patent/issues
-
----
-
-**Current Version**: v0.1.0  
-**Status**: ✅ Production Ready  
-**Last Updated**: 2026-06-15
+- **ESM `.js` imports**: If you add a new TypeScript file, remember to import it with `.js` extension, not `.ts`
+- **CLI path resolution**: `getPluginDir()` in `src/cli.ts` uses `import.meta.url` to locate the package root — works for global installs, `npm link`, and local builds
+- **Adapter manifest safety**: Never modify adapter uninstall logic to traverse directories. Always use the exact paths from manifest files
+- **State transitions**: The workflow state machine has explicit allowed transitions in `src/core/workflow.ts`. Invalid transitions are rejected
+- **Threshold discrepancy**: The README mentions "Novelty ≥ 7" but the actual code default in `threshold-config.ts` is `6.0`. Trust the code

@@ -36,7 +36,7 @@ The skill is typically invoked by the `patent-landscape-analyst` agent during th
   
 - **sources**: Which databases to query
   - Default: All enabled MCP servers
-  - Options: `google_scholar`, `uspto_patent`, `semantic_scholar`
+  - Options: `google_scholar`, `uspto_patent`, `semantic_scholar`, `cnipa_patent`, `patsnap_search`
 
 - **jurisdiction**: Filter by patent jurisdiction
   - Default: All jurisdictions
@@ -139,6 +139,17 @@ references/landscape_zkp-identity-edge.md
    - Citation graphs
    - Influence metrics
 
+4. **cnipa_patent** (recommended, required for CN jurisdiction)
+   - China National Intellectual Property Administration
+   - CN patent database with IPC classification
+   - Chinese patent full-text search
+
+5. **patsnap_search** (recommended)
+   - 智慧芽 (Patsnap) patent + literature fusion search
+   - 2.1 billion+ global patent data across 174 patent offices
+   - Includes legal status, patent family, and citation data
+   - REST API + native MCP service (Streamable HTTP)
+
 ### Configuration
 
 MCP servers should be configured in `.claude/settings.json`:
@@ -151,12 +162,23 @@ MCP servers should be configured in `.claude/settings.json`:
       "args": []
     },
     "semantic_scholar": {
-      "command": "mcp-semantic-scholar", 
+      "command": "mcp-semantic-scholar",
       "args": []
+    },
+    "patsnap_search": {
+      "url": "https://connect.zhihuiya.com/mcp?apikey=YOUR_PATSNAP_MCP_KEY",
+      "type": "streamableHttp"
     }
   }
 }
 ```
+
+**智慧芽 MCP Key 获取**：
+1. 登录 https://open.zhihuiya.com/
+2. 在 API 密钥页面创建新的 MCP Key（格式 `sk-xxxxxxxxxxxx`）
+3. 将 Key 填入 `url` 的 `apikey` 参数中
+
+**注意**：智慧芽 MCP 使用 Streamable HTTP transport，不是传统的 stdio MCP。配置时需使用 `url` + `type: "streamableHttp"` 格式，而非 `command` + `args`。
 
 ## Integration with Workflow
 
@@ -164,8 +186,10 @@ MCP servers should be configured in `.claude/settings.json`:
 1. User provides patent topic
 2. `archimedes` routes to `patent-landscape-analyst`
 3. Analyst invokes `prior-art-search` skill
-4. Results written to `references/landscape.md`
-5. Workflow advances to BRAINSTORM_R1
+4. Results written to `references/landscape_{topic_slug}.md`
+5. Feature matrix written to `references/feature-matrix_{topic_slug}.md`
+6. Problem map written to `references/problem-map_{topic_slug}.md`
+7. Workflow advances to BRAINSTORM_R1
 
 ### Outputs Used By
 - `patentability-evaluator`: Assesses novelty against prior art
@@ -208,7 +232,7 @@ MCP servers should be configured in `.claude/settings.json`:
    - Use "all time" only for emerging technologies
 
 3. **Result Validation**
-   - Always review landscape.md before proceeding
+   - Always review landscape_{topic_slug}.md before proceeding
    - Verify relevance of top 3 references manually
    - Cross-check patent classifications
 
