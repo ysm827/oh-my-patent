@@ -43,4 +43,54 @@ describe('Archimedes Routing Integration', () => {
     expect(result.action).toBe('PROMPT_USER');
     expect(result.message).toContain('状态不一致');
   });
+
+  test('returns RE_SEARCH when SEARCH intent at BRAINSTORM_R1', async () => {
+    const orchestrator = new ArchimedesOrchestrator();
+    const state = createInitialState({
+      topic: 'Test',
+      topicSlug: 'test',
+      jurisdiction: 'CN',
+      projectPath: 'projects/01-test'
+    });
+    state.current_stage = 'BRAINSTORM_R1';
+    const result = await orchestrator.processInput(
+      '补检同态加密相关专利',
+      { existingState: state, fileExists: () => true }
+    );
+    expect(result.action).toBe('RE_SEARCH');
+    expect(result.message).toContain('补检');
+  });
+
+  test('returns EXECUTE_SEARCH when SEARCH intent at RESEARCH', async () => {
+    const orchestrator = new ArchimedesOrchestrator();
+    const state = createInitialState({
+      topic: 'Test',
+      topicSlug: 'test',
+      jurisdiction: 'CN',
+      projectPath: 'projects/01-test'
+    });
+    state.current_stage = 'RESEARCH';
+    const result = await orchestrator.processInput(
+      '检索同态加密专利',
+      { existingState: state, fileExists: () => true }
+    );
+    expect(result.action).toBe('EXECUTE_SEARCH');
+  });
+
+  test('RE_SEARCH carries extracted query', async () => {
+    const orchestrator = new ArchimedesOrchestrator();
+    const state = createInitialState({
+      topic: 'Test',
+      topicSlug: 'test',
+      jurisdiction: 'CN',
+      projectPath: 'projects/01-test'
+    });
+    state.current_stage = 'BRAINSTORM_R1';
+    const result = await orchestrator.processInput(
+      '检索同态加密专利',
+      { existingState: state, fileExists: () => true }
+    );
+    expect(result.action).toBe('RE_SEARCH');
+    expect(result.extractedData?.query).toBeTruthy();
+  });
 });

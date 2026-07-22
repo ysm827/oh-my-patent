@@ -77,6 +77,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { FigureSpec } from './core/diagram-types.js';
 import { DiagramRenderer } from './core/diagram-renderer.js';
 import { insertFigureReferences } from './core/diagram-inserter.js';
+import { runFullCheck, formatReport, runJsonCheck, getMcpStatuses, buildMcpConfig, writeMcpConfig } from './core/init-checker.js';
 
 // ============================================================================
 // Package directory detection (works in global npm installs, dev, and linked modes)
@@ -107,9 +108,13 @@ function getDefaultWorkspaceDir(): string {
 function parseArgs(argv: string[]): Record<string, string> {
   const opts: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith('--') && i + 1 < argv.length) {
+    if (argv[i].startsWith('--')) {
       const key = argv[i].slice(2);
-      opts[key] = argv[++i];
+      if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
+        opts[key] = argv[++i];
+      } else {
+        opts[key] = 'true';
+      }
     }
   }
   return opts;
@@ -696,6 +701,7 @@ Domains:
   diagram   Patent diagram operations
   adapt     Generate tool-specific config (Claude Code, Codex, etc.)
   tui       Interactive terminal UI for brainstorm paths
+  check     Environment readiness check (MCP servers, tools, runtime)
 
 Path subcommands:
   init <project-path>                                       Initialize .brainstorm directory
@@ -865,8 +871,47 @@ Options:
       default:
         exitWithError(`Unknown diagram subcommand: ${subcommand}. Available: render, status, rerender`);
     }
+  } else if (domain === 'check') {
+    const checkOpts = parseArgs(args.slice(1));
+    const workspaceDir = checkOpts['workspace-dir'] ? resolve(checkOpts['workspace-dir']) : getDefaultWorkspaceDir();
+
+    if (checkOpts.json) {
+      const report = runJsonCheck({ workspaceDir });
+      console.log(JSON.stringify(report));
+    } else if (checkOpts['mcp-status']) {
+      const statuses = getMcpStatuses(workspaceDir);
+      console.log(JSON.stringify(statuses));
+    } else if (checkOpts['mcp-add']) {
+      const mcpId = checkOpts['mcp-add'];
+      const userValues: Record<string, string> = {};
+      if (checkOpts['mcp-key']) {
+        for (const pair of checkOpts['mcp-key'].split(',')) {
+          const [k, ...v] = pair.split('=');
+          if (k && v.length > 0) userValues[k.trim()] = v.join('=').trim();
+        }
+      }
+      const config = buildMcpConfig(mcpId, userValues);
+      if (!config) {
+        exitWithError(`Unknown MCP template: ${mcpId}. Available: ${['patsnap_search','google_scholar','uspto_patent','cnipa_patent','semantic_scholar'].join(', ')}`);
+      }
+      const result = writeMcpConfig(workspaceDir, mcpId, config);
+      const safeConfig = JSON.parse(JSON.stringify(config));
+      if (safeConfig.url && typeof safeConfig.url === 'string') {
+        safeConfig.url = safeConfig.url.replace(/apikey=[^&]+/gi, 'apikey=***');
+      }
+      console.log(JSON.stringify({ ok: result.success, mcpId, message: result.message, configPath: result.configPath, config: safeConfig }));
+    } else {
+      const report = runFullCheck({ workspaceDir });
+      const formatted = formatReport(report);
+      if (checkOpts.output) {
+        writeFileSync(resolve(checkOpts.output), formatted, 'utf-8');
+        console.log(JSON.stringify({ ok: true, ready: report.ready, blockingCount: report.blockingCount, warningCount: report.warningCount, output: checkOpts.output }));
+      } else {
+        console.log(formatted);
+      }
+    }
   } else {
-    exitWithError(`Unknown domain: ${domain}. Available: path, adapt, tui, diagram`);
+    exitWithError(`Unknown domain: ${domain}. Available: path, adapt, tui, diagram, check`);
   }
 }
 

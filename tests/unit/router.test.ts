@@ -34,4 +34,57 @@ describe('Intent Router', () => {
     expect(result.type).toBe(IntentType.NEW_PROJECT);
     expect(result.extracted?.topic).toContain('零知识证明');
   });
+
+  test('extracts query from SEARCH intent (Chinese)', () => {
+    const result = classifyIntent('检索区块链支付相关专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.query).toBeTruthy();
+    expect(result.extracted!.query!.length).toBeGreaterThan(0);
+  });
+
+  test('extracts query from SEARCH intent (English)', () => {
+    const result = classifyIntent('search for federated learning patents');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.query).toBeTruthy();
+  });
+
+  test('extracts scope from SEARCH intent', () => {
+    const result = classifyIntent('检索近3年零知识证明专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.scope).toBe('3years');
+  });
+
+  test('extracts jurisdiction CN from SEARCH intent', () => {
+    const result = classifyIntent('检索国内同态加密专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.jurisdiction).toBe('CN');
+  });
+
+  test('extracts jurisdiction US from SEARCH intent', () => {
+    const result = classifyIntent('search for US patents on homomorphic encryption');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.jurisdiction).toBe('US');
+  });
+
+  test('extracts query without scope/jurisdiction when not specified', () => {
+    const result = classifyIntent('检索区块链专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.query).toBeTruthy();
+    expect(result.extracted?.scope).toBeUndefined();
+    expect(result.extracted?.jurisdiction).toBeUndefined();
+  });
+
+  test('classifies 补检 as SEARCH intent', () => {
+    const result = classifyIntent('补检同态加密相关专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.query).toBeTruthy();
+  });
+
+  test('extracts multiple parameters from complex SEARCH', () => {
+    const result = classifyIntent('检索近5年国内联邦学习差分隐私专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.query).toBeTruthy();
+    expect(result.extracted?.scope).toBe('5years');
+    expect(result.extracted?.jurisdiction).toBe('CN');
+  });
 });

@@ -1,6 +1,6 @@
 {
   "name": "oh-my-patent",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "agents": [
     {
       "id": "archimedes",
@@ -79,6 +79,12 @@
       "name": "Patent Diagram Generator",
       "description": "读取交底书内容，生成 Mermaid/PlantUML 专利附图并渲染输出",
       "file": "src/agents/patent-diagram-generator.md"
+    },
+    {
+      "id": "patent-init-sentinel",
+      "name": "Patent Init Sentinel",
+      "description": "启动时环境检测哨兵：MCP 服务器可用性、外部工具、运行时、项目状态校验",
+      "file": "src/agents/patent-init-sentinel.md"
     }
   ],
   "skills": [
@@ -161,6 +167,12 @@
       "command": "/patent-diagram",
       "description": "生成、重渲染或查看专利附图",
       "file": "src/commands/patent-diagram.md"
+    },
+    {
+      "id": "patent-check",
+      "command": "/patent-check",
+      "description": "环境就绪检测：MCP 服务器、外部工具、运行时、项目状态",
+      "file": "src/commands/patent-check.md"
     }
   ],
   "config": {

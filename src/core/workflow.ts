@@ -29,7 +29,7 @@ const ALL_STAGES: WorkflowStage[] = [
 const VALID_TRANSITIONS: Record<WorkflowStage, WorkflowStage[]> = {
   [WorkflowStage.INIT]: [WorkflowStage.RESEARCH],
   [WorkflowStage.RESEARCH]: [WorkflowStage.BRAINSTORM_R1],
-  [WorkflowStage.BRAINSTORM_R1]: [WorkflowStage.BRAINSTORM_R2],
+  [WorkflowStage.BRAINSTORM_R1]: [WorkflowStage.BRAINSTORM_R2, WorkflowStage.RESEARCH],
   [WorkflowStage.BRAINSTORM_R2]: [WorkflowStage.DRAFT],
   [WorkflowStage.DRAFT]: [WorkflowStage.DIAGRAM_DRAFT],
   [WorkflowStage.DIAGRAM_DRAFT]: [WorkflowStage.QA_LOOP],
@@ -63,6 +63,9 @@ export class WorkflowMachine {
     }
     this.completed.add(this.current);
     this.current = target;
+    if (this.completed.has(target)) {
+      this.completed.delete(target);
+    }
   }
 
   isCompleted(stage: WorkflowStage): boolean {

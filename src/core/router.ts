@@ -16,6 +16,8 @@ export interface IntentResult {
   extracted?: {
     topic?: string;
     query?: string;
+    scope?: string;
+    jurisdiction?: string;
   };
 }
 
@@ -31,8 +33,13 @@ const INTENT_PATTERNS: Record<IntentType, IntentPattern[]> = {
     { pattern: /(基于.{1,30}的.{1,30}(方法|系统|装置|方案))/, confidence: 0.95 }
   ],
   [IntentType.SEARCH]: [
-    { pattern: /(检索|搜索|查找).{0,10}(现有技术|专利|文献)/, confidence: 0.9 },
-    { pattern: /(查一下).{0,10}(相关|类似).{0,20}(专利|技术)/, confidence: 0.85 }
+    { pattern: /(检索|搜索|查找).{0,30}(现有技术|专利|文献|prior art)/i, confidence: 0.9 },
+    { pattern: /(查一下).{0,10}(相关|类似).{0,20}(专利|技术|文献)/, confidence: 0.85 },
+    { pattern: /(帮我查).{0,15}(专利|技术|文献)/, confidence: 0.85 },
+    { pattern: /(找一下).{0,10}(相关|类似).{0,20}(专利|技术|文献)/, confidence: 0.85 },
+    { pattern: /(补检).{0,15}(专利|技术|文献)/, confidence: 0.88 },
+    { pattern: /(search|find|look\s+up)\s.{0,30}(patents?|prior\s+art|literature)/i, confidence: 0.88 },
+    { pattern: /prior\s+art\s+search/i, confidence: 0.95 }
   ],
   [IntentType.BRAINSTORM]: [
     { pattern: /(头脑风暴|创新点|创意)/, confidence: 0.9 },
@@ -61,6 +68,41 @@ const INTENT_PATTERNS: Record<IntentType, IntentPattern[]> = {
   [IntentType.UNKNOWN]: []
 };
 
+function extractSearchQuery(input: string): string | undefined {
+  const cnMatch =
+    input.match(/(?:检索|搜索|查找|查一下|找一下|帮我查|补检)\s*(.{2,80}?)(?:的相关|的类似|的|相关|类似|专利|文献|现有技术|prior art|技术)/i) ||
+    input.match(/(?:检索|搜索|查找|查一下|找一下|帮我查|补检)\s*(.{2,80})/);
+  const enMatch =
+    input.match(/(?:search\s+for|find|look\s+up)\s+(.{2,80}?)(?:\s+patent|\s+prior\s+art|\s+literature)/i) ||
+    input.match(/(?:search\s+for|find|look\s+up)\s+(.{2,80})/i);
+
+  const matched = cnMatch || enMatch;
+  if (!matched) return undefined;
+  const query = matched[1].trim();
+  if (query.length < 2) return undefined;
+  return query;
+}
+
+function extractScope(input: string): string | undefined {
+  const m = input.match(/(?:最近|近)\s*(\d+)\s*年/);
+  if (!m) return undefined;
+  const years = parseInt(m[1], 10);
+  if (years <= 1) return '1year';
+  if (years <= 3) return '3years';
+  if (years <= 5) return '5years';
+  if (years <= 10) return '10years';
+  return 'all';
+}
+
+function extractJurisdiction(input: string): string | undefined {
+  if (/(国内|中国|CN)/i.test(input)) return 'CN';
+  if (/(美国|US)/i.test(input)) return 'US';
+  if (/(欧洲|EP)/i.test(input)) return 'EP';
+  if (/(日本|JP)/i.test(input)) return 'JP';
+  if (/(PCT|国际)/i.test(input)) return 'PCT';
+  return undefined;
+}
+
 export function classifyIntent(input: string): IntentResult {
   const normalizedInput = input.trim();
   let bestMatch: { type: IntentType; confidence: number } | null = null;
@@ -88,6 +130,18 @@ export function classifyIntent(input: string): IntentResult {
         normalizedInput.match(/(.{2,50})(方法|系统|装置|方案)$/);
       if (topicMatch) {
         result.extracted = { topic: topicMatch[1] };
+      }
+    }
+
+    if (bestMatch.type === IntentType.SEARCH) {
+      const query = extractSearchQuery(normalizedInput);
+      const scope = extractScope(normalizedInput);
+      const jurisdiction = extractJurisdiction(normalizedInput);
+      if (query || scope || jurisdiction) {
+        result.extracted = {};
+        if (query) result.extracted.query = query;
+        if (scope) result.extracted.scope = scope;
+        if (jurisdiction) result.extracted.jurisdiction = jurisdiction;
       }
     }
 

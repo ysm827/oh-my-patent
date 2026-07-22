@@ -41,4 +41,43 @@ describe('Workflow State Machine', () => {
     machine.transition(WorkflowStage.DRAFT);
     expect(machine.currentStage).toBe(WorkflowStage.DRAFT);
   });
+
+  test('BRAINSTORM_R1 can transition back to RESEARCH', () => {
+    const machine = new WorkflowMachine();
+    machine.transition(WorkflowStage.RESEARCH);
+    machine.transition(WorkflowStage.BRAINSTORM_R1);
+    expect(machine.canTransition(WorkflowStage.RESEARCH)).toBe(true);
+    machine.transition(WorkflowStage.RESEARCH);
+    expect(machine.currentStage).toBe(WorkflowStage.RESEARCH);
+  });
+
+  test('reverting to RESEARCH reactivates it (not completed)', () => {
+    const machine = new WorkflowMachine();
+    machine.transition(WorkflowStage.RESEARCH);
+    machine.transition(WorkflowStage.BRAINSTORM_R1);
+    expect(machine.isCompleted(WorkflowStage.RESEARCH)).toBe(true);
+    machine.transition(WorkflowStage.RESEARCH);
+    expect(machine.isCompleted(WorkflowStage.RESEARCH)).toBe(false);
+  });
+
+  test('can re-advance after revert: RESEARCH → BRAINSTORM_R1 again', () => {
+    const machine = new WorkflowMachine();
+    machine.transition(WorkflowStage.RESEARCH);
+    machine.transition(WorkflowStage.BRAINSTORM_R1);
+    machine.transition(WorkflowStage.RESEARCH);
+    expect(machine.canTransition(WorkflowStage.BRAINSTORM_R1)).toBe(true);
+    machine.transition(WorkflowStage.BRAINSTORM_R1);
+    expect(machine.currentStage).toBe(WorkflowStage.BRAINSTORM_R1);
+  });
+
+  test('normal forward path still works after revert', () => {
+    const machine = new WorkflowMachine();
+    machine.transition(WorkflowStage.RESEARCH);
+    machine.transition(WorkflowStage.BRAINSTORM_R1);
+    machine.transition(WorkflowStage.RESEARCH);
+    machine.transition(WorkflowStage.BRAINSTORM_R1);
+    machine.transition(WorkflowStage.BRAINSTORM_R2);
+    machine.transition(WorkflowStage.DRAFT);
+    expect(machine.currentStage).toBe(WorkflowStage.DRAFT);
+  });
 });
