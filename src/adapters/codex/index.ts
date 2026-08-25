@@ -49,7 +49,10 @@ export class CodexAdapter implements ToolAdapter {
 
     for (const command of def.commands) {
       files.set(join('.codex', 'commands', `${command.id}.md`), this.generateCommandPrompt(command));
-      files.set(join(pluginRoot, 'skills', command.id, 'SKILL.md'), this.generateCommandSkill(command));
+      const skillId = def.agents.some(agent => agent.id === command.id)
+        ? `${command.id}-command`
+        : command.id;
+      files.set(join(pluginRoot, 'skills', skillId, 'SKILL.md'), this.generateCommandSkill(command, skillId));
     }
 
     for (const skill of def.skills) {
@@ -150,24 +153,34 @@ export class CodexAdapter implements ToolAdapter {
   }
 
   private generateSkillPrompt(skill: SkillDef): string {
-    if (skill.promptContent?.trim()) {
-      return skill.promptContent.trim() + '\n';
-    }
-
-    return [
+    const content = skill.promptContent?.trim() || [
       `# ${skill.name}`,
       '',
       '<!-- Generated fallback skill file for Codex by oh-my-patent. -->',
       '',
       skill.description || skill.name,
+    ].join('\n');
+
+    if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(content)) {
+      return content + '\n';
+    }
+
+    const description = skill.description || `Use when the patent workflow needs the ${skill.name} capability.`;
+    return [
+      '---',
+      `name: ${skill.id}`,
+      `description: ${JSON.stringify(description)}`,
+      '---',
+      '',
+      content,
       '',
     ].join('\n');
   }
 
-  private generateCommandSkill(command: CommandDef): string {
+  private generateCommandSkill(command: CommandDef, skillId = command.id): string {
     return [
       '---',
-      `name: ${command.id}`,
+      `name: ${skillId}`,
       `description: Use when the user invokes ${command.name} or asks to ${command.description}.`,
       '---',
       '',

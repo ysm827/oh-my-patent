@@ -77,7 +77,7 @@ export class ClaudeCodeAdapter implements ToolAdapter {
     const fm = this.buildAgentFrontmatter(agent);
     parts.push('---');
     for (const [key, value] of Object.entries(fm)) {
-      parts.push(`${key}: ${value}`);
+      parts.push(`${key}: ${typeof value === 'string' ? JSON.stringify(value) : value}`);
     }
     parts.push('---');
     parts.push('');
@@ -133,16 +133,16 @@ export class ClaudeCodeAdapter implements ToolAdapter {
 
     // Tools: "*" means all tools (bash, write, edit, mcp, etc.)
     // Claude Code frontmatter: if tools is missing, agent gets all tools by default
-    if (agent.permissions.bash) {
+    if (agent.permissions.bash || agent.permissions.mcp) {
+      // MCP tool names are assigned by Claude Code at runtime. Inherit the
+      // session tools so MCP-enabled agents can access the configured servers.
       fm.tools = "*";
-    } else if (agent.permissions.write || agent.permissions.edit || agent.permissions.mcp) {
-      const tools: string[] = [];
+    } else {
+      const tools = ['Read', 'Glob', 'Grep'];
       if (agent.permissions.write) tools.push('Write');
       if (agent.permissions.edit) tools.push('Edit');
-      if (agent.permissions.mcp) tools.push('Mcp');
       fm.tools = tools.join(', ');
     }
-    // If no special permissions, omit tools field (default = all tools)
 
     if (agent.model) {
       fm.model = agent.model;
@@ -189,7 +189,7 @@ export class ClaudeCodeAdapter implements ToolAdapter {
 
     // YAML frontmatter for ccb command discovery
     parts.push('---');
-    parts.push(`description: "${cmd.description}"`);
+    parts.push(`description: ${JSON.stringify(cmd.description)}`);
     parts.push('---');
     parts.push('');
     // Use the original command prompt content if available

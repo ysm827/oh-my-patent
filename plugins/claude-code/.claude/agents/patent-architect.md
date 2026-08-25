@@ -1,3 +1,9 @@
+---
+name: "patent-architect"
+description: "生成候选创新点并主持头脑风暴辩论"
+tools: "Read, Glob, Grep"
+---
+
 <!-- Agent: patent-architect | Role: subagent -->
 
 <!-- Sub-agent — invoked via Agent tool with subagent_type="patent-architect" -->

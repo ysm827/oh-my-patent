@@ -1,3 +1,9 @@
+---
+name: "patent-product-compliance-analyst"
+description: "评估产品法规和隐私合规性"
+tools: "Read, Glob, Grep, Write"
+---
+
 <!-- Agent: patent-product-compliance-analyst | Role: subagent -->
 
 <!-- Permissions: write -->

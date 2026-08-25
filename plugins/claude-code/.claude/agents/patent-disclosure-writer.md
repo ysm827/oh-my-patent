@@ -1,3 +1,9 @@
+---
+name: "patent-disclosure-writer"
+description: "生成专利交底书文档"
+tools: "Read, Glob, Grep, Write, Edit"
+---
+
 <!-- Agent: patent-disclosure-writer | Role: subagent -->
 
 <!-- Permissions: write, edit -->

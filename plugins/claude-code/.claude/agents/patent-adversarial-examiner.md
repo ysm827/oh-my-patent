@@ -1,3 +1,9 @@
+---
+name: "patent-adversarial-examiner"
+description: "对抗性审查，模拟审查员质疑"
+tools: "Read, Glob, Grep, Write"
+---
+
 <!-- Agent: patent-adversarial-examiner | Role: subagent -->
 
 <!-- Permissions: write -->

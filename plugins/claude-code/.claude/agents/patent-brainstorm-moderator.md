@@ -1,3 +1,9 @@
+---
+name: "patent-brainstorm-moderator"
+description: "协调多轮头脑风暴代理辩论，执行评分阈值决策"
+tools: "Read, Glob, Grep, Write"
+---
+
 <!-- Agent: patent-brainstorm-moderator | Role: subagent -->
 
 <!-- Permissions: write -->

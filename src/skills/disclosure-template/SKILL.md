@@ -1,3 +1,8 @@
+---
+name: disclosure-template
+description: Use when creating or validating a patent disclosure document against the required section template.
+---
+
 # Disclosure Template Skill
 
 Provide patent disclosure templates for different jurisdictions.

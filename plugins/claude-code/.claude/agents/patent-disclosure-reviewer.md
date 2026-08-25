@@ -1,3 +1,9 @@
+---
+name: "patent-disclosure-reviewer"
+description: "审核法律合规性和撰写质量"
+tools: "Read, Glob, Grep, Write, Edit"
+---
+
 <!-- Agent: patent-disclosure-reviewer | Role: subagent -->
 
 <!-- Permissions: write, edit -->

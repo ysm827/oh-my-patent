@@ -1,3 +1,9 @@
+---
+name: "patentability-evaluator"
+description: "评估新颖性、创造性和实用性"
+tools: "Read, Glob, Grep, Write"
+---
+
 <!-- Agent: patentability-evaluator | Role: subagent -->
 
 <!-- Permissions: write -->

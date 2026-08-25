@@ -1,3 +1,9 @@
+---
+name: "patent-writer"
+description: "生成符合专利撰写规范的完整交底书"
+tools: "Read, Glob, Grep"
+---
+
 <!-- Agent: patent-writer | Role: subagent -->
 
 <!-- Sub-agent — invoked via Agent tool with subagent_type="patent-writer" -->

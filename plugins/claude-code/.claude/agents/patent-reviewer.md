@@ -1,3 +1,9 @@
+---
+name: "patent-reviewer"
+description: "从专利法与撰写规范角度审核交底书"
+tools: "Read, Glob, Grep"
+---
+
 <!-- Agent: patent-reviewer | Role: subagent -->
 
 <!-- Sub-agent — invoked via Agent tool with subagent_type="patent-reviewer" -->

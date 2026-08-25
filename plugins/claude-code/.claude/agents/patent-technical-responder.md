@@ -1,3 +1,9 @@
+---
+name: "patent-technical-responder"
+description: "对审核意见提供技术答复"
+tools: "Read, Glob, Grep, Write, Edit"
+---
+
 <!-- Agent: patent-technical-responder | Role: subagent -->
 
 <!-- Permissions: write, edit -->

@@ -1,3 +1,8 @@
+---
+name: evidence-card
+description: Use when creating standardized evidence cards for patents, papers, standards, or other prior-art references.
+---
+
 # Evidence Card Skill
 
 Generate standardized evidence cards for prior art references.

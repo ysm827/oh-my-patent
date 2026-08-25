@@ -23,6 +23,7 @@ describe('CodexAdapter', () => {
     expect(result.files.has(join('plugins', 'oh-my-patent', '.codex-plugin', 'plugin.json'))).toBe(true);
     expect(result.files.has(join('plugins', 'oh-my-patent', 'skills', 'patent-new', 'SKILL.md'))).toBe(true);
     expect(result.files.has(join('plugins', 'oh-my-patent', 'skills', 'archimedes', 'SKILL.md'))).toBe(true);
+    expect(result.files.has(join('plugins', 'oh-my-patent', 'skills', 'archimedes-command', 'SKILL.md'))).toBe(true);
     expect(result.files.has('AGENTS.md')).toBe(true);
     expect(result.files.has('codex.json')).toBe(true);
 
@@ -33,6 +34,12 @@ describe('CodexAdapter', () => {
     expect(manifest.agents.archimedes.promptFile).toContain('archimedes.md');
     expect(manifest.commands['patent-new'].promptFile).toContain('patent-new.md');
     expect(manifest.skills['brainstorm-path'].promptFile).toContain('brainstorm-path');
+
+    for (const skill of def.skills) {
+      const skillContent = result.files.get(join('.codex', 'skills', skill.id, 'SKILL.md')) ?? '';
+      expect(skillContent).toMatch(/^---\nname: [a-z0-9-]+\ndescription: .+\n---\n/);
+      expect(result.files.get(join('plugins', 'oh-my-patent', 'skills', skill.id, 'SKILL.md'))).toBe(skillContent);
+    }
 
     const plugin = JSON.parse(result.files.get(join('plugins', 'oh-my-patent', '.codex-plugin', 'plugin.json')) ?? '{}');
     expect(plugin.name).toBe('oh-my-patent');

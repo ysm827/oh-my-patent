@@ -1,3 +1,8 @@
+---
+name: brainstorm-path
+description: Use when recording, querying, branching, restoring, or visualizing patent brainstorm decision paths.
+---
+
 # Skill: Brainstorm Path
 
 Manage brainstorm decision paths — recording rounds, querying history, creating branches, evaluating thresholds, and rendering visualizations.

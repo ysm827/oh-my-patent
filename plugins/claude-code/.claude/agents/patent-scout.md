@@ -1,3 +1,9 @@
+---
+name: "patent-scout"
+description: "执行专利检索与现有技术分析"
+tools: "Read, Glob, Grep"
+---
+
 <!-- Agent: patent-scout | Role: subagent -->
 
 <!-- Sub-agent — invoked via Agent tool with subagent_type="patent-scout" -->

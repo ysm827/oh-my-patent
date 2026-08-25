@@ -1,3 +1,9 @@
+---
+name: "archimedes"
+description: "专利主编排器，协调全流程并管理头脑风暴路径"
+tools: "*"
+---
+
 <!-- Agent: archimedes | Role: primary -->
 
 <!-- Permissions: write, edit, bash, mcp -->

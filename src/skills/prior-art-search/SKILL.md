@@ -1,3 +1,8 @@
+---
+name: prior-art-search
+description: Use when searching patents and technical literature for prior art, novelty, or patentability assessment.
+---
+
 # Prior Art Search Skill
 
 Search existing patents and technical literature to identify prior art for novelty and patentability assessment.

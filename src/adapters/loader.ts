@@ -290,20 +290,31 @@ function loadAgents(pluginDir: string, pluginAgents: PluginAgentEntry[]): AgentD
     // Try to read prompt content from the plugin's own agent files
     const promptPath = join(pluginDir, a.file);
     let promptContent = '';
+    let sourceFrontmatter: OpenCodeFrontmatter = {};
     if (existsSync(promptPath)) {
       const raw = readFileSync(promptPath, 'utf-8');
-      const { body } = parseFrontmatter(raw);
+      const { frontmatter, body } = parseFrontmatter(raw);
+      sourceFrontmatter = frontmatter;
       promptContent = body;
     }
+
+    const permissions: AgentPermissions = {
+      write: sourceFrontmatter.tools?.write ?? false,
+      edit: sourceFrontmatter.tools?.edit ?? false,
+      bash: sourceFrontmatter.tools?.bash ?? false,
+      mcp: sourceFrontmatter.tools?.mcp ?? sourceFrontmatter.tools?.['mcp*'] ?? false,
+    };
 
     agents.push({
       id: a.id,
       name: a.name,
       description: a.description,
-      role: 'subagent',
-      permissions: { write: false, edit: false, bash: false },
+      role: sourceFrontmatter.mode === 'primary' ? 'primary' : 'subagent',
+      permissions,
       promptFile: a.file,
       promptContent,
+      model: sourceFrontmatter.model,
+      temperature: sourceFrontmatter.temperature,
     });
   }
 

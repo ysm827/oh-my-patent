@@ -1,3 +1,9 @@
+---
+name: "patent-innovation-architect"
+description: "使用 TRIZ 方法生成创新概念与候选方案"
+tools: "Read, Glob, Grep, Write"
+---
+
 <!-- Agent: patent-innovation-architect | Role: subagent -->
 
 <!-- Permissions: write -->

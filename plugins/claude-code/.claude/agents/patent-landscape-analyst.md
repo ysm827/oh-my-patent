@@ -1,3 +1,9 @@
+---
+name: "patent-landscape-analyst"
+description: "聚合多源专利检索结果，生成技术全景"
+tools: "*"
+---
+
 <!-- Agent: patent-landscape-analyst | Role: subagent -->
 
 <!-- Permissions: write, mcp -->

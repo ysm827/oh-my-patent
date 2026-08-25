@@ -1,3 +1,9 @@
+---
+name: "patent-security-engineer"
+description: "识别安全漏洞和侧信道风险"
+tools: "Read, Glob, Grep, Write"
+---
+
 <!-- Agent: patent-security-engineer | Role: subagent -->
 
 <!-- Permissions: write -->

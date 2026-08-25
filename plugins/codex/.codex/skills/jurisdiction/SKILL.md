@@ -1,3 +1,8 @@
+---
+name: jurisdiction
+description: Use when applying CN, US, or PCT patent jurisdiction rules, claim formats, procedures, or timelines.
+---
+
 # Jurisdiction Rules Skill
 
 Provides patent jurisdiction rules for CN, US, and PCT.

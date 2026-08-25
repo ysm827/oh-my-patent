@@ -1,3 +1,9 @@
+---
+name: "patent-path-recorder"
+description: "持久化头脑风暴路径、节点和创新点快照"
+tools: "Read, Glob, Grep, Write"
+---
+
 <!-- Agent: patent-path-recorder | Role: subagent -->
 
 <!-- Permissions: write, edit -->

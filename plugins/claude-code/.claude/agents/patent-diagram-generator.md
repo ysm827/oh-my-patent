@@ -1,3 +1,9 @@
+---
+name: "patent-diagram-generator"
+description: "读取交底书内容，生成并渲染专利附图"
+tools: "*"
+---
+
 <!-- Agent: patent-diagram-generator | Role: subagent -->
 
 <!-- Sub-agent — invoked via Agent tool with subagent_type="patent-diagram-generator" -->

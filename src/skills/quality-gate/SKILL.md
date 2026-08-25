@@ -1,3 +1,8 @@
+---
+name: quality-gate
+description: Use when validating patent disclosure completeness, evidence quality, citation integrity, and workflow exit criteria.
+---
+
 # Quality Gate Skill
 
 Validates patent disclosure completeness and quality.

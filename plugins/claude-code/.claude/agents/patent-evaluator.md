@@ -1,3 +1,9 @@
+---
+name: "patent-evaluator"
+description: "评估候选创新点的可专利性"
+tools: "Read, Glob, Grep"
+---
+
 <!-- Agent: patent-evaluator | Role: subagent -->
 
 <!-- Sub-agent — invoked via Agent tool with subagent_type="patent-evaluator" -->
