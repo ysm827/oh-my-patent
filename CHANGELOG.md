@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.1] - 2026-08-26
+
+### Fixed
+
+- Added portable skill frontmatter for Codex and OpenCode compatibility.
+- Corrected Claude Code agent tool permissions and YAML generation.
+- Prevented Codex agent and command skill name collisions.
+
+### Verification
+
+- `npm run build` passing.
+- `npm run lint` passing.
+
 ## [0.2.0] - 2026-07-22
 
 ### Added
