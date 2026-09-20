@@ -72,15 +72,7 @@ their own setup requirements; see the [usage guide](./docs/usage-en.md).
 
 ## From idea to disclosure
 
-```mermaid
-flowchart TD
-    A["Prepare and research"] --> B["Develop and assess ideas"]
-    B --> C["Write disclosure and draft figures"]
-    C --> D["Review and revise"]
-    D --> E["Refresh final figures and finish"]
-    B -->|More evidence| A
-    D -->|Revise draft| C
-```
+![Archimedes workflow overview: prepare and research, develop and assess ideas, draft disclosure and figures, review and revise, finalize disclosure and figures; with research and drafting feedback loops](./docs/images/workflow-overview-brand-v1.png)
 
 *Overview of the ten stages, grouped by purpose. Arrows back to research and
 drafting show where further work may be needed.*

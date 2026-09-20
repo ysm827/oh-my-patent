@@ -70,15 +70,7 @@ oh-my-patent check --workspace-dir .
 
 ## 从构想到交底书
 
-```mermaid
-flowchart TD
-    A["准备与检索"] --> B["构思与评估"]
-    B --> C["撰写交底书与初稿附图"]
-    C --> D["审查与修订"]
-    D --> E["更新最终附图并完成"]
-    B -->|补充证据| A
-    D -->|修订初稿| C
-```
+![Archimedes 品牌流程图解：准备与检索、构思与评估、撰写与初稿附图、审查与修订、定稿与最终附图；支持补充检索和修订初稿](./docs/images/workflow-overview-brand-v1.png)
 
 *图解按用途合并展示十个阶段；返回箭头表示需要补充检索或修订初稿。*
 
