@@ -3,6 +3,7 @@ import { join, resolve, dirname, relative, sep } from 'path';
 import { execSync } from 'child_process';
 // REQ-015: the JSONC comment stripper is shared — see src/core/jsonc.ts.
 import { stripJsonComments } from './jsonc.js';
+import { randomBytes } from 'crypto';
 
 export type CheckStatus = 'ready' | 'missing' | 'warning';
 
@@ -353,18 +354,27 @@ export function writeMcpConfig(
     mkdirSync(dir, { recursive: true });
   }
 
-  const tempPath = `${configPath}.${Date.now()}.tmp`;
+  const tempPath = `${configPath}.${Date.now()}.${randomBytes(4).toString('hex')}.tmp`;
   let permissions: { applied: boolean; mode: number | null } = { applied: false, mode: null };
   try {
-    writeFileSync(tempPath, JSON.stringify(existing, null, 2), 'utf-8');
-    // Harden the temp file BEFORE the rename: renaming preserves the mode, so
-    // this avoids any window where the secret exists under its final name with
-    // default permissions (REQ-009).
+    writeFileSync(tempPath, JSON.stringify(existing, null, 2), { encoding: 'utf-8', flag: 'wx' });
     permissions = hardenPermissions(tempPath);
-    if (existsSync(configPath)) {
-      unlinkSync(configPath);
+    try {
+      renameSync(tempPath, configPath);
+    } catch (renameErr) {
+      const code = (renameErr as NodeJS.ErrnoException).code;
+      if (code === 'EEXIST' || code === 'EACCES' || code === 'EPERM') {
+        // Windows: destination exists, need to unlink first
+        try {
+          unlinkSync(configPath);
+        } catch {
+          // ignore
+        }
+        renameSync(tempPath, configPath);
+      } else {
+        throw renameErr;
+      }
     }
-    renameSync(tempPath, configPath);
   } catch (error) {
     if (existsSync(tempPath)) {
       try { unlinkSync(tempPath); } catch { /* ignore */ }

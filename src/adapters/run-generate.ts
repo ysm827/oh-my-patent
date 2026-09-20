@@ -11,6 +11,8 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { loadPortableDef, LoaderOptions } from './loader.js';
 import type { PortableDef, ToolAdapter } from './types.js';
+import { isDangerousKey } from '../core/cli-args.js';
+import { ensureInside, isSafeRelPath } from '../core/path-safety.js';
 
 /**
  * Loader signature — injectable so tests can count calls with a plain spy
@@ -61,8 +63,9 @@ export async function runAdaptGenerate(options: RunAdaptGenerateOptions): Promis
   const def = await loadDef({ pluginDir, workspaceDir });
 
   // Resolve config defaults once (derived from the same definition)
-  const config: Record<string, unknown> = {};
+  const config: Record<string, unknown> = Object.create(null);
   for (const [key, field] of Object.entries(def.config)) {
+    if (isDangerousKey(key)) continue;
     config[key] = field.default;
   }
 
@@ -84,7 +87,11 @@ export async function runAdaptGenerate(options: RunAdaptGenerateOptions): Promis
       : resolve(pluginDir, 'plugins', name);
     let fileCount = 0;
     for (const [relPath, content] of result.files) {
+      if (!isSafeRelPath(relPath)) {
+        throw new Error(`Unsafe generated path blocked: ${relPath}`);
+      }
       const fullPath = resolve(targetDir, relPath);
+      ensureInside(targetDir, fullPath);
       const dir = resolve(fullPath, '..');
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });

@@ -31,7 +31,7 @@
 import { resolve, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { homedir } from 'os';
-import { readFileSync, copyFileSync, readdirSync } from 'fs';
+import { readFileSync, copyFileSync, readdirSync, statSync } from 'fs';
 import {
   initBrainstormDirectory,
   savePath,
@@ -81,6 +81,8 @@ import { FigureSpec } from './core/diagram-types.js';
 import { DiagramRenderer } from './core/diagram-renderer.js';
 import { insertFigureReferences } from './core/diagram-inserter.js';
 import { runFullCheck, formatReport, runJsonCheck, getMcpStatuses, buildMcpConfig, writeMcpConfig } from './core/init-checker.js';
+import { ensureInside, isSafeRelPath } from './core/path-safety.js';
+import { parseArgs, isDangerousKey } from './core/cli-args.js';
 
 // ============================================================================
 // Package directory detection (works in global npm installs, dev, and linked modes)
@@ -108,29 +110,25 @@ function getDefaultWorkspaceDir(): string {
 }
 
 // ============================================================================
-// Argument parsing
+// Argument parsing (parseArgs imported from core/cli-args for testability)
 // ============================================================================
-
-function parseArgs(argv: string[]): Record<string, string> {
-  const opts: Record<string, string> = {};
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith('--')) {
-      const key = argv[i].slice(2);
-      if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
-        opts[key] = argv[++i];
-      } else {
-        opts[key] = 'true';
-      }
-    }
-  }
-  return opts;
-}
 
 function parseJsonInput(input: string): unknown {
   // Support @file syntax for reading JSON from a file
   if (input.startsWith('@')) {
     const filePath = input.slice(1);
-    const content = readFileSync(resolve(filePath), 'utf-8');
+    const resolved = resolve(filePath);
+    // Limit file size to 10MB to prevent DoS via huge file read
+    try {
+      const stat = statSync(resolved);
+      if (stat.size > 10 * 1024 * 1024) {
+        throw new Error(`File too large: ${stat.size} bytes (max 10MB)`);
+      }
+    } catch (e) {
+      if ((e as Error).message.startsWith('File too large')) throw e;
+      // If stat fails, let readFileSync throw ENOENT etc.
+    }
+    const content = readFileSync(resolved, 'utf-8');
     return JSON.parse(content);
   }
   return JSON.parse(input);
@@ -433,9 +431,10 @@ async function adaptInstall(pluginDir: string, opts: Record<string, string>): Pr
     }
 
     const def = await loadPortableDef({ pluginDir, workspaceDir });
-    const config: Record<string, unknown> = {};
+    const config: Record<string, unknown> = Object.create(null);
     for (const [key, field] of Object.entries(def.config)) {
-      config[key] = field.default;
+      if (isDangerousKey(key)) continue;
+      (config as Record<string, unknown>)[key] = field.default;
     }
 
     const result = await adapter.generate(def, config);
@@ -443,7 +442,11 @@ async function adaptInstall(pluginDir: string, opts: Record<string, string>): Pr
     // Write directly into workspaceDir
     let fileCount = 0;
     for (const [relPath, content] of result.files) {
+      if (!isSafeRelPath(relPath)) {
+        exitWithError(`Unsafe generated path blocked: ${relPath}`);
+      }
       const fullPath = resolve(workspaceDir, relPath);
+      ensureInside(workspaceDir, fullPath);
       const dir = resolve(fullPath, '..');
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
@@ -707,7 +710,16 @@ async function diagramRerender(projectPath: string, opts: Record<string, string>
 
   let sourceText: string;
   if (opts.source.startsWith('@')) {
-    sourceText = readFileSync(resolve(opts.source.slice(1)), 'utf-8');
+    const resolved = resolve(opts.source.slice(1));
+    try {
+      const stat = statSync(resolved);
+      if (stat.size > 10 * 1024 * 1024) {
+        exitWithError(`Source file too large: ${stat.size} bytes (max 10MB)`);
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.startsWith('Source file too large')) throw e;
+    }
+    sourceText = readFileSync(resolved, 'utf-8');
   } else {
     sourceText = opts.source;
   }
@@ -935,11 +947,15 @@ Options:
       console.log(JSON.stringify(statuses));
     } else if (checkOpts['mcp-add']) {
       const mcpId = checkOpts['mcp-add'];
-      const userValues: Record<string, string> = {};
+      const userValues: Record<string, string> = Object.create(null);
       if (checkOpts['mcp-key']) {
         for (const pair of checkOpts['mcp-key'].split(',')) {
           const [k, ...v] = pair.split('=');
-          if (k && v.length > 0) userValues[k.trim()] = v.join('=').trim();
+          if (k && v.length > 0) {
+            const key = k.trim();
+            if (isDangerousKey(key)) continue;
+            (userValues as Record<string, string>)[key] = v.join('=').trim();
+          }
         }
       }
       const config = buildMcpConfig(mcpId, userValues);

@@ -19,6 +19,7 @@
 
 import { mkdirSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
+import { randomBytes } from 'crypto';
 
 export type RenameFn = typeof renameSync;
 
@@ -32,7 +33,7 @@ export interface AtomicWriteOptions {
 
 /** Build the temp-file path used for the intermediate write. */
 export function tempPathFor(filePath: string): string {
-  return `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  return `${filePath}.${process.pid}.${Date.now()}.${randomBytes(8).toString('hex')}.tmp`;
 }
 
 /**
@@ -56,7 +57,7 @@ export function atomicWriteFileSync(
   const rename = options.rename ?? renameSync;
 
   try {
-    writeFileSync(tempPath, content, 'utf-8');
+    writeFileSync(tempPath, content, { encoding: 'utf-8', flag: 'wx' });
     rename(tempPath, filePath);
   } catch (error) {
     try {
