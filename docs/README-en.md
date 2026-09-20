@@ -1,179 +1,32 @@
-# oh-my-patent Documentation Hub
+# oh-my-patent documentation
 
-Welcome to the oh-my-patent documentation hub! This directory contains detailed technical documentation and visualization diagrams for the project.
+[Project home](../README.md) · [中文](./README.md)
 
-## 📚 Documentation Index
+## Usage and development
 
-### Core Documentation
+| Guide | Contents |
+|---|---|
+| [Usage and CLI](./usage-en.md) | Installation, platform differences, checks, path and diagram commands, uninstall |
+| [Workflow](./workflow-diagram-en.md) | Ten stages, allowed transitions, scoring decisions, and recovery |
+| [Agents and collaboration](./agents-en.md) | 14 agents, 6 skills, 9 commands, and five collaboration patterns |
+| [Architecture and development](./architecture-en.md) | Four layers, repository and project files, development commands |
+| [Contributing](../CONTRIBUTING.md) | Coding style, tests, and contribution conventions |
+| [Brand guide](../assets/brand/README.md) | Archimedes identity and brand assets |
 
-- **[README.md](../README.md)** - Main project documentation (English)
-  - Installation guide
-  - Quick start
-  - Full usage
-  - Uninstallation guide
-  - End-to-end workflow diagram
+## Design and planning references
 
-- **[README.zh-CN.md](../README.zh-CN.md)** - Main project documentation (Chinese)
-  - Installation guide
-  - Quick start
-  - Full usage
-  - Uninstallation guide
-  - End-to-end workflow diagram
+These documents retain product design context and plans. They are not, by themselves,
+a list of shipped features. Use the guides above and their linked source code for
+current behavior. Some design references are in Chinese.
 
-- **[CLAUDE.md](../CLAUDE.md)** - Claude Code project instructions
-  - Project architecture deep-dive
-  - Development workflow
-  - Quality metrics
-  - Release process
+- [Specification index](./specs/README.md): [product requirements](./specs/PRD.md),
+  [technical design](./specs/TECHNICAL-DESIGN.md), and [API design](./specs/API-DESIGN.md).
+- Retrieval improvements: [requirements](./RETRIEVAL_PRD.md), [specification](./RETRIEVAL_SPEC.md),
+  and [development plan](./RETRIEVAL_DEV_PLAN.md).
+- [Progress-output design](./specs/PROGRESS-OUTPUT-ENHANCEMENT.md).
 
-- **[CONTRIBUTING.md](../CONTRIBUTING.md)** - Contribution guidelines
-  - Code style
-  - Testing requirements
-  - Commit conventions
-  - PR process
+Keep the workflow reference's Mermaid diagram aligned with the implementation;
+`images/` retains other diagram assets. Update both languages when behavior changes.
+Avoid manually maintained version labels or passing-test counts in documentation entry points.
 
-### Visualization Diagrams
-
-- **[workflow-diagram.md](workflow-diagram.md)** - Workflow diagrams (Chinese)
-  - 🔄 End-to-End Workflow
-  - 🏗️ System Architecture
-  - 🤖 Agent Collaboration
-  - 📊 Decision Path Data Structure
-  - 📁 File System Layout
-  - 🔀 Workflow State Machine
-
-- **[workflow-diagram-en.md](workflow-diagram-en.md)** - Workflow diagrams (English)
-  - 🔄 End-to-End Workflow
-  - 🏗️ System Architecture
-  - 🤖 Agent Collaboration
-  - 📊 Decision Path Data Structure
-  - 📁 File System Layout
-  - 🔀 Workflow State Machine
-
-### Specification Documents
-
-- **[specs/](specs/)** - Product specifications and technical design documents
-  - **[PRD.md](specs/PRD.md)** - Product Requirements Document
-  - **[TECHNICAL-DESIGN.md](specs/TECHNICAL-DESIGN.md)** - Technical Design Specification
-  - **[API-DESIGN.md](specs/API-DESIGN.md)** - API Design Document
-  - **[README.md](specs/README.md)** - Specification Index
-
-## 🎯 Quick Navigation
-
-### I want to...
-
-#### Understand how to use oh-my-patent
-- 👉 Read the "Quick Demo" and "Installation" sections in [README.md](../README.md)
-- 👉 View the end-to-end workflow diagram in [workflow-diagram-en.md](workflow-diagram-en.md)
-
-#### Understand the system architecture
-- 👉 Read the "Architecture Highlights" section in [CLAUDE.md](../CLAUDE.md)
-- 👉 View the system architecture and agent collaboration diagrams in [workflow-diagram-en.md](workflow-diagram-en.md)
-
-#### Contribute code
-- 👉 Read [CONTRIBUTING.md](../CONTRIBUTING.md)
-- 👉 Learn about the "Development Workflow" and "Tech Stack" in [CLAUDE.md](../CLAUDE.md)
-
-#### Uninstall oh-my-patent
-- 👉 Read the "Uninstallation" section in [README.md](../README.md)
-- 👉 Use command: `oh-my-patent adapt uninstall --workspace-dir .`
-
-#### Understand the decision path system
-- 👉 View the decision path data structure diagram in [workflow-diagram-en.md](workflow-diagram-en.md)
-- 👉 Read the "Decision Path System" section in [CLAUDE.md](../CLAUDE.md)
-
-#### Understand the workflow state machine
-- 👉 View the workflow state machine diagram in [workflow-diagram-en.md](workflow-diagram-en.md)
-- 👉 Read the "The Workflow" section in [README.md](../README.md)
-
-## 📖 Diagram Viewing Guide
-
-### On GitHub
-GitHub natively supports Mermaid rendering. Simply view the `.md` files in the repository to see the full visualizations.
-
-### Local Viewing
-Use a Markdown editor with Mermaid support:
-
-#### VS Code
-```bash
-# Install extension
-code --install-extension bierner.markdown-mermaid
-```
-
-#### Other Editors
-- **Obsidian** - Native Mermaid support
-- **Typora** - Native Mermaid support
-- **GitHub Desktop** - Native Mermaid support
-
-### Export as Images
-Using Mermaid CLI:
-
-```bash
-# Install Mermaid CLI
-npm install -g @mermaid-js/mermaid-cli
-
-# Export as PDF
-mmdc -i docs/workflow-diagram-en.md -o docs/workflow-diagram-en.pdf
-
-# Export as PNG
-mmdc -i docs/workflow-diagram-en.md -o docs/workflow-diagram-en.png -w 2400
-```
-
-Or use online editors:
-- [Mermaid Live Editor](https://mermaid.live/)
-- [Mermaid Chart](https://www.mermaidchart.com/)
-
-## 🔗 External Resources
-
-### Official Links
-- **npm**: https://www.npmjs.com/package/oh-my-patent
-- **GitHub**: https://github.com/illusionaireal/oh-my-patent
-- **Issues**: https://github.com/illusionaireal/oh-my-patent/issues
-
-### Community Support
-- **LINUX DO Community**: https://linux.do/
-- **Discussions**: GitHub Discussions (coming soon)
-
-### Technical Documentation
-- **Mermaid Syntax**: https://mermaid.js.org/
-- **TypeScript**: https://www.typescriptlang.org/
-- **Vitest**: https://vitest.dev/
-- **Node.js**: https://nodejs.org/
-
-## 📝 Documentation Maintenance
-
-### Updating Documentation
-If you find errors or areas for improvement in the documentation:
-
-1. Fork this repository
-2. Create a feature branch: `git checkout -b docs/improve-xxx`
-3. Make your changes
-4. Commit: `git commit -m "docs: improve xxx documentation"`
-5. Push: `git push origin docs/improve-xxx`
-6. Create a Pull Request
-
-### Documentation Standards
-- Use Markdown format
-- Bilingual support (Chinese and English)
-- Code examples use ```bash or ```typescript markers
-- Diagrams use Mermaid syntax
-- Keep documentation concise and clear
-
-## ❓ Getting Help
-
-If you encounter issues:
-
-1. 📖 First, consult this documentation index to find relevant sections
-2. 🔍 Search for similar issues in [Issues](https://github.com/illusionaireal/oh-my-patent/issues)
-3. 💬 Start a discussion in the [LINUX DO Community](https://linux.do/)
-4. 🐛 If it's a bug, create a new Issue
-
-## 📜 License
-
-This project and its documentation are licensed under the [MIT License](../LICENSE).
-
----
-
-**Current Version**: v0.1.0  
-**Last Updated**: 2026-06-17  
-**Maintainer**: [@zengbods](https://github.com/zengbods)
+For help, [open an issue](https://github.com/illusionaireal/oh-my-patent/issues).

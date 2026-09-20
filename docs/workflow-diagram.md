@@ -1,327 +1,90 @@
-# oh-my-patent 工作流图示
+# 工作流说明
 
-本文档提供 oh-my-patent 的可视化工作流程图。
+[文档中心](./README.md) · [English](./workflow-diagram-en.md)
 
-## 端到端工作流
+## 阶段转换
 
-```mermaid
-graph TD
-    Start([用户提出技术主题]) --> Init[INIT: 初始化项目]
-    Init --> InitFiles[创建 .patent/state.json<br/>.brainstorm/path.json]
-    
-    InitFiles --> Research[RESEARCH: 专利检索]
-    Research --> Landscape[landscape-analyst<br/>→ references/landscape.md]
-    
-    Landscape --> BrainstormR1[BRAINSTORM R1: 第1轮头脑风暴]
-    BrainstormR1 --> Architect[innovation-architect<br/>生成创新候选]
-    BrainstormR1 --> Adversarial[adversarial-examiner<br/>攻击漏洞]
-    Architect --> Score1[评分 + 创新点快照]
-    Adversarial --> Score1
-    Score1 --> Node1[.brainstorm/nodes/round-1.json]
-    
-    Node1 --> BrainstormR2[BRAINSTORM R2: 第2轮深度评估]
-    BrainstormR2 --> Security[security-engineer<br/>安全审查]
-    BrainstormR2 --> Compliance[compliance-analyst<br/>合规检查]
-    BrainstormR2 --> Evaluator[patentability-evaluator<br/>可专利性评估]
-    Security --> Score2[综合评分]
-    Compliance --> Score2
-    Evaluator --> Score2
-    
-    Score2 --> Threshold{阈值评估<br/>novelty ≥ 7<br/>creativity ≥ 7}
-    Threshold -->|未通过| BrainstormR1
-    Threshold -->|通过| Draft[DRAFT: 撰写初稿]
-    
-    Draft --> Writer[patent-disclosure-writer<br/>→ MAIN.md]
-    
-    Writer --> QALoop[QA_LOOP: 审查-答辩循环]
-    QALoop --> Reviewer[patent-disclosure-reviewer<br/>提出问题]
-    Reviewer --> Issues{有新问题?}
-    Issues -->|是| Responder[patent-technical-responder<br/>修订答辩]
-    Responder --> QACount{轮次 ≤ 6?}
-    QACount -->|是| QALoop
-    QACount -->|否| FinalReview
-    Issues -->|否,连续2轮| FinalReview[FINAL_REVIEW: 最终审查]
-    
-    FinalReview --> FinalDecision{通过?}
-    FinalDecision -->|退回| QALoop
-    FinalDecision -->|通过| Diagram[DIAGRAM: 渲染附图]
-    
-    Diagram --> DiagramRenderer[diagram-renderer<br/>Mermaid/PlantUML → SVG+PNG]
-    DiagramRenderer --> FiguresDir[figures/ + 更新 MAIN.md]
-    
-    FiguresDir --> QualityGate[DONE: 质量闸门]
-    QualityGate --> Complete([✅ 完成])
-    
-    %% 分支操作
-    Node1 -.->|path branch| Branch[创建分支探索]
-    Score2 -.->|path restore| Restore[复活已放弃创新点]
-    
-    %% 崩溃恢复
-    Research -.->|崩溃| Recovery[从 state.json 恢复]
-    BrainstormR1 -.->|崩溃| Recovery
-    Draft -.->|崩溃| Recovery
-    QALoop -.->|崩溃| Recovery
-    Recovery -.-> Resume[精确断点续传]
-    
-    style Start fill:#e1f5ff
-    style Complete fill:#c8e6c9
-    style Threshold fill:#fff9c4
-    style FinalDecision fill:#fff9c4
-    style Issues fill:#fff9c4
-    style QACount fill:#fff9c4
-    style Recovery fill:#ffccbc
-    style Branch fill:#f3e5f5
-    style Restore fill:#f3e5f5
-```
-
-## 系统架构图
+下图依据 [WorkflowMachine](../src/core/workflow.ts) 中的十个阶段与允许转换。
+箭头表示允许转换，不表示状态机会自动调用智能体或检查评分门槛。
 
 ```mermaid
-graph TB
-    subgraph User["用户交互层"]
-        CLI[CLI 命令]
-        TUI[TUI 交互界面]
-        Editor[编辑器插件<br/>Claude Code / Codex]
-    end
-    
-    subgraph Orchestration["编排层"]
-        Archimedes[Archimedes<br/>主编排器]
-        Agents[11个专业智能体]
-        Skills[可复用技能]
-        Commands[CLI命令定义]
-    end
-    
-    subgraph Engine["核心引擎层"]
-        PathEngine[决策路径引擎<br/>brainstorm-path.ts]
-        StateEngine[状态机引擎<br/>state-manager.ts]
-        DiagramEngine[图表渲染引擎<br/>diagram-renderer.ts]
-        ThresholdEngine[阈值评估引擎<br/>threshold-config.ts]
-        WorkflowEngine[工作流编排<br/>workflow.ts]
-    end
-    
-    subgraph Adapters["适配器层"]
-        ClaudeAdapter[Claude Code Adapter]
-        CodexAdapter[Codex Adapter]
-        Loader[配置加载器]
-    end
-    
-    subgraph Storage["持久化存储"]
-        PathStorage[.brainstorm/<br/>决策路径数据]
-        StateStorage[.patent/<br/>工作流状态]
-        References[references/<br/>智能体产出]
-        Figures[figures/<br/>渲染附图]
-        MainDoc[MAIN.md<br/>交底书]
-    end
-    
-    CLI --> Archimedes
-    TUI --> PathEngine
-    Editor --> Archimedes
-    
-    Archimedes --> Agents
-    Agents --> Skills
-    Commands --> Engine
-    
-    PathEngine --> PathStorage
-    StateEngine --> StateStorage
-    DiagramEngine --> Figures
-    WorkflowEngine --> StateStorage
-    
-    Agents --> References
-    Agents --> MainDoc
-    
-    ClaudeAdapter --> Editor
-    CodexAdapter --> Editor
-    Loader -.-> Adapters
-    
-    style User fill:#e3f2fd
-    style Orchestration fill:#fff3e0
-    style Engine fill:#f3e5f5
-    style Adapters fill:#e8f5e9
-    style Storage fill:#fce4ec
+flowchart TD
+    INIT["INIT"] --> RESEARCH["RESEARCH"]
+    RESEARCH --> R1["BRAINSTORM_R1"]
+    R1 --> R2["BRAINSTORM_R2"]
+    R1 --> RESEARCH
+    R2 --> DRAFT["DRAFT"]
+    DRAFT --> DD["DIAGRAM_DRAFT"]
+    DD --> QA["QA_LOOP"]
+    QA --> FINAL["FINAL_REVIEW"]
+    QA --> DRAFT
+    FINAL --> DF["DIAGRAM_FINAL"]
+    FINAL --> QA
+    DF --> DONE["DONE"]
 ```
 
-## 智能体协作图
+| 阶段 | 用途 |
+|---|---|
+| `INIT` | 准备项目与工作上下文 |
+| `RESEARCH` | 收集现有技术证据，分析技术全景 |
+| `BRAINSTORM_R1` | 生成候选构思并提出质疑 |
+| `BRAINSTORM_R2` | 汇总专业智能体的评估 |
+| `DRAFT` | 撰写或修订交底书 |
+| `DIAGRAM_DRAFT` | 准备并渲染初稿附图 |
+| `QA_LOOP` | 审查问题与技术答复 |
+| `FINAL_REVIEW` | 审核修订后的交底书 |
+| `DIAGRAM_FINAL` | 根据最终修订更新附图 |
+| `DONE` | 标记流程完成 |
 
-```mermaid
-graph LR
-    subgraph Input["输入阶段"]
-        User[用户] --> Topic[技术主题]
-    end
-    
-    subgraph Search["检索阶段"]
-        Topic --> Analyst[patent-landscape-analyst]
-        Analyst --> Landscape[landscape.md]
-    end
-    
-    subgraph Brainstorm["头脑风暴阶段"]
-        Landscape --> Architect[patent-innovation-architect]
-        Architect --> Innovations[创新候选]
-        
-        Innovations --> Adversarial[patent-adversarial-examiner]
-        Innovations --> Security[patent-security-engineer]
-        Innovations --> Compliance[patent-product-compliance-analyst]
-        Innovations --> Evaluator[patentability-evaluator]
-        
-        Adversarial --> Scores[综合评分]
-        Security --> Scores
-        Compliance --> Scores
-        Evaluator --> Scores
-    end
-    
-    subgraph Draft["撰写阶段"]
-        Scores --> Writer[patent-disclosure-writer]
-        Writer --> MainMd[MAIN.md 初稿]
-    end
-    
-    subgraph QA["审查阶段"]
-        MainMd --> Reviewer[patent-disclosure-reviewer]
-        Reviewer --> Issues[问题清单]
-        Issues --> Responder[patent-technical-responder]
-        Responder --> Revision[修订版本]
-        Revision --> Reviewer
-    end
-    
-    subgraph Finalize["完成阶段"]
-        Revision --> Moderator[patent-brainstorm-moderator]
-        Moderator --> Final[最终版本]
-        Final --> Recorder[patent-path-recorder]
-        Recorder --> Complete[✅ 完成]
-    end
-    
-    style Input fill:#e1f5ff
-    style Search fill:#fff9c4
-    style Brainstorm fill:#ffccbc
-    style Draft fill:#c8e6c9
-    style QA fill:#f3e5f5
-    style Finalize fill:#b2dfdb
-```
+有三条返回前序阶段的路径：`BRAINSTORM_R1 → RESEARCH`、
+`QA_LOOP → DRAFT`、`FINAL_REVIEW → QA_LOOP`。
+当前状态机没有直接的 `BRAINSTORM_R2 → BRAINSTORM_R1` 转换。
+头脑风暴轮次与分支由决策路径系统单独记录。
 
-## 决策路径数据结构
+## 评分决策
 
-```mermaid
-graph TD
-    Path[BrainstormPath] --> Metadata[元数据<br/>projectId, topic, status]
-    Path --> Nodes[节点列表<br/>nodes: string[]]
-    Path --> Edges[边列表<br/>edges: Edge[]]
-    Path --> Current[当前节点<br/>currentNodeId]
-    Path --> Final[最终决策<br/>finalDecision]
-    
-    Nodes --> Node1[Round 1 Node]
-    Nodes --> Node2[Round 2 Node]
-    Nodes --> NodeN[Round N Node]
-    
-    Node1 --> NodeData[节点数据]
-    NodeData --> AgentOutputs[智能体产出]
-    NodeData --> Innovations[创新点列表]
-    NodeData --> Scores[评分数据]
-    NodeData --> Decision[决策记录]
-    
-    Edges --> Edge1[Edge 1]
-    Edge1 --> Transform[转换类型<br/>refine/merge/split/pivot]
-    Edge1 --> Changes[变更描述]
-    
-    style Path fill:#e3f2fd
-    style Metadata fill:#fff9c4
-    style NodeData fill:#c8e6c9
-    style Transform fill:#f3e5f5
-```
+[阈值评估器](../src/core/threshold-config.ts)读取每个创新点已保存的
+`weightedScore`、`novelty` 和 `creativity`。
 
-## 文件系统布局
+| 配置 | 默认值 | 作用 |
+|---|---|---|
+| `passToDraft` | 8.5 | 正常通过所需的最低综合分 |
+| `redLines.novelty` | 6.0 | 正常通过所需的最低新颖性分 |
+| `redLines.creativity` | 6.0 | 正常通过所需的最低创造性分 |
+| `forceIteration.maxRounds` | 3 | 达到或超过该轮次时，未达标结果变为 `FORCE_PASS` |
+| `forceIteration.minImprovement` | 0.3 | 配置中已定义，但当前 `evaluateThreshold` 未使用 |
 
-```mermaid
-graph TD
-    Root[项目根目录] --> Brainstorm[.brainstorm/<br/>决策路径]
-    Root --> Patent[.patent/<br/>工作流状态]
-    Root --> Refs[references/<br/>智能体产出]
-    Root --> Figs[figures/<br/>渲染附图]
-    Root --> Main[MAIN.md]
-    Root --> Conv[conversation.md]
-    
-    Brainstorm --> PathJson[path.json<br/>路径元数据]
-    Brainstorm --> NodesDir[nodes/<br/>每轮数据]
-    Brainstorm --> SnapshotsDir[snapshots/<br/>创新点快照]
-    Brainstorm --> BranchesDir[branches/<br/>分支副本]
-    
-    Patent --> StateJson[state.json<br/>当前阶段]
-    
-    Refs --> Landscape[landscape.md]
-    Refs --> Brainstorm1[brainstorm_round1_archimedes.md]
-    Refs --> Review[review_r1_patent-disclosure-reviewer.md]
-    
-    Figs --> SVG[*.svg]
-    Figs --> PNG[*.png]
-    Figs --> Manifest[figures-manifest.json]
-    
-    style Root fill:#e3f2fd
-    style Brainstorm fill:#fff9c4
-    style Patent fill:#ffccbc
-    style Refs fill:#c8e6c9
-    style Figs fill:#f3e5f5
-```
+| 分数与轮次条件 | 返回动作 |
+|---|---|
+| 两条红线均满足，且综合分 ≥ 8.5 | `PASS_TO_DRAFT` |
+| 未满足红线或综合分不足，且未到第 3 轮 | `ITERATE` |
+| 未满足红线或综合分不足，且已到第 3 轮或之后 | `FORCE_PASS` |
 
-## 工作流状态机
+因此，即使新颖性或创造性低于红线，也可能返回 `FORCE_PASS`。
+返回的标志位与理由会保留未达标信息。这些属于评分决策；
+执行阈值评估本身不会改变工作流阶段。
 
-```mermaid
-stateDiagram-v2
-    [*] --> INIT: 用户提出主题
-    INIT --> RESEARCH: 初始化完成
-    RESEARCH --> BRAINSTORM_R1: 检索完成
-    BRAINSTORM_R1 --> BRAINSTORM_R2: 第1轮完成
-    BRAINSTORM_R2 --> BRAINSTORM_R1: 阈值未通过
-    BRAINSTORM_R2 --> DRAFT: 阈值通过
-    DRAFT --> QA_LOOP: 初稿完成
-    QA_LOOP --> QA_LOOP: 有新问题 且 轮次≤6
-    QA_LOOP --> FINAL_REVIEW: 连续2轮无问题
-    FINAL_REVIEW --> QA_LOOP: 退回修订
-    FINAL_REVIEW --> DIAGRAM: 审查通过
-    DIAGRAM --> DONE: 附图渲染完成
-    DONE --> [*]: 质量闸门通过
-    
-    note right of INIT
-        创建目录结构
-        初始化 state.json
-        初始化 path.json
-    end note
-    
-    note right of BRAINSTORM_R2
-        阈值检查：
-        - novelty ≥ 7
-        - creativity ≥ 7
-        - composite ≥ 7
-    end note
-    
-    note right of QA_LOOP
-        退出条件：
-        - 连续2轮无新问题
-        - 或达到最大轮次(6)
-    end note
-```
+## 审查与附图
 
----
+Archimedes 指令要求连续两轮 QA 没有新增问题后进入最终润色。
+状态机校验转换路径；编排器与审查者负责评估文档并记录结论。
 
-## 使用说明
+初稿附图与最终附图是两个独立阶段。附图智能体准备规格，
+CLI 负责渲染，并更新已有 `MAIN.md` 中的引用。
+最终渲染应显式提供最终规格，详见[附图命令](./usage.md#附图)。
 
-### 在 GitHub 上查看
+## 继续已有项目
 
-GitHub 原生支持 Mermaid 渲染。直接在仓库中查看本文档即可看到完整的可视化图表。
+工作流状态与决策历史各有用途：
 
-### 本地渲染
+| 记录 | 用途 |
+|---|---|
+| `.patent/state.json` | 保存当前阶段与各阶段状态 |
+| `.brainstorm/path.json` 及轮次文件 | 追踪构思、评分、决策与分支 |
+| `references/` | 保存检索结果和专业智能体产出 |
+| `MAIN.md` 与 `figures/` | 保存交底书与渲染后的附图 |
 
-使用支持 Mermaid 的 Markdown 编辑器：
-- VS Code + Markdown Preview Mermaid Support 插件
-- Obsidian
-- Typora
-- GitHub Desktop
+继续项目依赖这些已保存文件。创建决策路径分支不会回滚整个工作目录，
+也不会自动恢复工作流状态。
 
-### 导出为图片
-
-使用 Mermaid CLI：
-
-```bash
-npm install -g @mermaid-js/mermaid-cli
-mmdc -i docs/workflow-diagram.md -o docs/workflow-diagram.pdf
-```
-
-或使用在线编辑器：
-- https://mermaid.live/
-- https://mermaid-js.github.io/mermaid-live-editor/
+继续阅读[智能体协作](./agents.md)、[项目架构](./architecture.md)与[使用指南](./usage.md)。
