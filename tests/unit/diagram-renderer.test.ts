@@ -245,8 +245,7 @@ describe('DiagramRenderer', () => {
       expect(manifest[0].files.source).toBe('fig1_arch.mmd');
     });
   });
-  // ===================================================================    });
-  });
+  // ==========================================================================
   // REQ-003: rerender 的 manifest round-trip
   // ==========================================================================
 
@@ -664,8 +663,8 @@ describe('DiagramRenderer', () => {
       expect(urls.every((u) => u.startsWith('https://puml.internal.example/puml/'))).toBe(true);
       // 结尾斜杠必须被规整，不能出现 `//png/`
       expect(urls.some((u) => u.includes('//png/'))).toBe(false);
-=======
-
+    });
+  });
   describe('figureId validation', () => {
     it('should reject path traversal in figureId', async () => {
       const renderer = new DiagramRenderer();

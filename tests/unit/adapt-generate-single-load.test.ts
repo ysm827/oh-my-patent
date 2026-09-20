@@ -112,4 +112,30 @@ describe('runAdaptGenerate loads the definition once (REQ-027)', () => {
       loadDef,
     })).rejects.toThrow(/Unknown adapter: no-such-tool/);
   });
+
+  test('generation rejects adapter output escaping its directory', async () => {
+    const adapter = new CodexAdapter();
+    vi.spyOn(adapter, 'generate').mockResolvedValue({
+      files: new Map([['../escaped.txt', 'blocked']]),
+    });
+    await expect(runAdaptGenerate({
+      pluginDir: outputDir, workspaceDir: outputDir, outputDir,
+      adapters: [adapter], loadDef: async () => makeStubDef(),
+    })).rejects.toThrow(/Unsafe generated path/);
+  });
+
+  test('generation filters dangerous configuration defaults before adapter invocation', async () => {
+    const adapter = new CodexAdapter();
+    const generate = vi.spyOn(adapter, 'generate').mockResolvedValue({ files: new Map() });
+    const def = makeStubDef();
+    def.config = JSON.parse('{"__proto__":{"default":{"polluted":true}},"constructor":{"default":true},"safe":{"default":"ok"}}');
+    await runAdaptGenerate({
+      pluginDir: outputDir, workspaceDir: outputDir, outputDir,
+      adapters: [adapter], loadDef: async () => def,
+    });
+    const config = generate.mock.calls[0][1];
+    expect(Object.getPrototypeOf(config)).toBeNull();
+    expect(Object.keys(config)).toEqual(['safe']);
+    expect(config.safe).toBe('ok');
+  });
 });

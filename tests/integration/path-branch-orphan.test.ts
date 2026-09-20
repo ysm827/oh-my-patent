@@ -54,7 +54,7 @@ describe('Path Branch - long ID and orphan cleanup (P2)', () => {
 
     // Check that branch files exist
     const branchFile = path.join(testDir, '.brainstorm', 'branches', `${result.branchId}.json`);
-    const branchNodesDir = path.join(testDir, '.brainstorm', 'branches', result.branchId, 'nodes');
+    const branchNodesDir = path.join(testDir, '.brainstorm', 'branches', result.branchId, '.brainstorm', 'nodes');
     expect(await fs.stat(branchFile).then(() => true).catch(() => false)).toBe(true);
     expect(await fs.stat(branchNodesDir).then(() => true).catch(() => false)).toBe(true);
   });
