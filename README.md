@@ -72,6 +72,19 @@ their own setup requirements; see the [usage guide](./docs/usage-en.md).
 
 ## From idea to disclosure
 
+```mermaid
+flowchart TD
+    A["Prepare and research"] --> B["Develop and assess ideas"]
+    B --> C["Write disclosure and draft figures"]
+    C --> D["Review and revise"]
+    D --> E["Refresh final figures and finish"]
+    B -->|More evidence| A
+    D -->|Revise draft| C
+```
+
+*Overview of the ten stages, grouped by purpose. Arrows back to research and
+drafting show where further work may be needed.*
+
 | Step | Workflow stages |
 |---|---|
 | Prepare and research | `INIT` → `RESEARCH` |
@@ -110,3 +123,5 @@ The [agent reference](./docs/agents-en.md) lists the 14 registered agents, 6 ski
 Contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) or
 [report an issue](https://github.com/illusionaireal/oh-my-patent/issues).
 Licensed under [MIT](./LICENSE).
+
+*With thanks to the* [*LINUX DO Community*](https://linux.do/)

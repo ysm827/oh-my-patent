@@ -70,6 +70,18 @@ oh-my-patent check --workspace-dir .
 
 ## 从构想到交底书
 
+```mermaid
+flowchart TD
+    A["准备与检索"] --> B["构思与评估"]
+    B --> C["撰写交底书与初稿附图"]
+    C --> D["审查与修订"]
+    D --> E["更新最终附图并完成"]
+    B -->|补充证据| A
+    D -->|修订初稿| C
+```
+
+*图解按用途合并展示十个阶段；返回箭头表示需要补充检索或修订初稿。*
+
 | 步骤 | 工作流阶段 |
 |---|---|
 | 准备与检索 | `INIT` → `RESEARCH` |
@@ -108,3 +120,5 @@ oh-my-patent check --workspace-dir .
 欢迎参与贡献，请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)，
 或[提交问题](https://github.com/illusionaireal/oh-my-patent/issues)。
 采用 [MIT 许可证](./LICENSE)。
+
+*With thanks to the* [*LINUX DO Community*](https://linux.do/)
