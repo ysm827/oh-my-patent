@@ -60,4 +60,34 @@ describe('CodexAdapter', () => {
     expect(agentsMd).toContain('.codex/agents/');
     expect(agentsMd).toContain('do not assume every Codex CLI version supports `codex --agent`');
   });
+
+  // ==========================================================================
+  // REQ-031: codex.json 安全默认值与可配置项
+  // ==========================================================================
+
+  test('codex.json uses conservative defaults: no sandbox:false, model/provider configurable (REQ-031)', async () => {
+    const def = await loadPortableDef({ pluginDir, workspaceDir });
+    const adapter = new CodexAdapter();
+    const result = await adapter.generate(def, {});
+
+    const manifest = JSON.parse(result.files.get('codex.json') ?? '{}');
+    // 旧默认 sandbox:false 是安全倒退；现在必须是保守沙箱模式
+    expect(manifest.sandbox).not.toBe(false);
+    expect(manifest.sandbox).toBe('workspace-write');
+    // approvalMode 保持保守
+    expect(manifest.approvalMode).toBe('suggest');
+    // model/provider 是示例默认值，可经 config 覆盖
+    expect(manifest.model).toBe('o4-mini');
+    expect(manifest.provider).toBe('openai');
+  });
+
+  test('codex.json model/provider can be overridden through config (REQ-031)', async () => {
+    const def = await loadPortableDef({ pluginDir, workspaceDir });
+    const adapter = new CodexAdapter();
+    const result = await adapter.generate(def, { codexModel: 'gpt-5-codex', codexProvider: 'openai' });
+
+    const manifest = JSON.parse(result.files.get('codex.json') ?? '{}');
+    expect(manifest.model).toBe('gpt-5-codex');
+    expect(manifest.provider).toBe('openai');
+  });
 });

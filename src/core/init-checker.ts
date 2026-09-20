@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, renameSync, unlinkSync } from 'fs';
-import { join, resolve, dirname } from 'path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, renameSync, unlinkSync, chmodSync, statSync } from 'fs';
+import { join, resolve, dirname, relative, sep } from 'path';
 import { execSync } from 'child_process';
+// REQ-015: the JSONC comment stripper is shared — see src/core/jsonc.ts.
+import { stripJsonComments } from './jsonc.js';
 
 export type CheckStatus = 'ready' | 'missing' | 'warning';
 
@@ -133,7 +135,16 @@ const REQUIRED_TOOLS = [
   },
 ] as const;
 
-const MIN_NODE_MAJOR = 18;
+/**
+ * 运行时 Node 下限（REQ-037）。
+ *
+ * 写 **22** 而不是 18：`dependencies` 中的 `ink@^7`（`tui` 域使用）自身声明
+ * `engines.node >= 22`（2026-09-20 实测 npm registry：ink 7.x 全系 `>=22`，
+ * 6.x 为 `>=20`）。若声称 18，`npm install` 在 18/20 上只会给一条 EBADENGINE
+ * 警告，直到真正运行 `tui` 才以晦涩错误失败 —— 正是「安装期静默通过、
+ * 运行期才炸」，与本仓库的声明一致性要求相悖（C-1）。
+ */
+const MIN_NODE_MAJOR = 22;
 
 function tryExec(command: string): string | null {
   try {
@@ -156,6 +167,62 @@ interface McpConfigTarget {
   adapter: 'claude' | 'codex' | 'opencode';
 }
 
+/**
+ * POSIX mode for a file that can hold a live API key: owner read/write only.
+ * See REQ-009 -- the key was previously written readable by everyone.
+ */
+const SECRET_FILE_MODE = 0o600;
+
+/**
+ * Tighten a file that may contain an API key, and report what the filesystem
+ * actually did rather than what we asked for. Some platforms (notably Windows)
+ * accept chmod() and silently do not implement POSIX modes, so claiming success
+ * would be a false assurance.
+ */
+function hardenPermissions(filePath: string): { applied: boolean; mode: number | null } {
+  try {
+    chmodSync(filePath, SECRET_FILE_MODE);
+    const mode = statSync(filePath).mode & 0o777;
+    return { applied: mode === SECRET_FILE_MODE, mode };
+  } catch {
+    return { applied: false, mode: null };
+  }
+}
+
+/**
+ * Make sure the MCP config path cannot be committed by accident.
+ *
+ * The config lands in the workspace root (`codex.json`, `.claude/settings.json`,
+ * `opencode.jsonc`) and routinely contains `?apikey=...` in a URL, so a plain
+ * `git add -A` would publish the key. Appending the path is idempotent and is
+ * skipped when the entry (or its directory) is already ignored.
+ */
+function ensureGitignored(
+  workspaceDir: string,
+  configPath: string,
+): { updated: boolean; gitignorePath: string; pattern: string } {
+  const rel = relative(workspaceDir, configPath).split(sep).join('/');
+  const gitignorePath = join(workspaceDir, '.gitignore');
+  const content = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf-8') : '';
+  const lines = content.split(/\r?\n/).map((line) => line.trim());
+
+  const parent = rel.includes('/') ? `${rel.slice(0, rel.lastIndexOf('/'))}/` : '';
+  const covered =
+    lines.includes(rel) ||
+    lines.includes(`/${rel}`) ||
+    (parent !== '' && (lines.includes(parent) || lines.includes(parent.slice(0, -1))));
+
+  if (covered) {
+    return { updated: false, gitignorePath, pattern: rel };
+  }
+
+  const separator = content === '' ? '' : content.endsWith('\n') ? '\n' : '\n\n';
+  const block =
+    `${separator}# oh-my-patent: this file may contain an MCP API key in plaintext\n${rel}\n`;
+  writeFileSync(gitignorePath, content + block, 'utf-8');
+  return { updated: true, gitignorePath, pattern: rel };
+}
+
 function getMcpConfigTarget(workspaceDir: string): McpConfigTarget {
   if (existsSync(join(workspaceDir, '.claude'))) {
     return {
@@ -176,43 +243,6 @@ function getMcpConfigTarget(workspaceDir: string): McpConfigTarget {
     key: 'mcp',
     adapter: 'opencode',
   };
-}
-
-function stripJsonComments(content: string): string {
-  let result = '';
-  let index = 0;
-  let inString = false;
-
-  while (index < content.length) {
-    const current = content[index];
-    const next = content[index + 1];
-
-    if (inString) {
-      result += current;
-      if (current === '\\') {
-        index++;
-        if (index < content.length) result += content[index];
-      } else if (current === '"') {
-        inString = false;
-      }
-      index++;
-    } else if (current === '"') {
-      inString = true;
-      result += current;
-      index++;
-    } else if (current === '/' && next === '/') {
-      while (index < content.length && content[index] !== '\n') index++;
-    } else if (current === '/' && next === '*') {
-      index += 2;
-      while (index < content.length - 1 && !(content[index] === '*' && content[index + 1] === '/')) index++;
-      index += 2;
-    } else {
-      result += current;
-      index++;
-    }
-  }
-
-  return result;
 }
 
 function parseConfig(content: string, configPath: string): Record<string, unknown> {
@@ -284,11 +314,24 @@ export function buildMcpConfig(
   };
 }
 
+export interface McpWriteResult {
+  success: boolean;
+  message: string;
+  configPath: string;
+  /** Always populated: the caller must surface this, it is the only warning. */
+  warning: string;
+  /** True when this call added the config path to the workspace .gitignore. */
+  gitignoreUpdated: boolean;
+  gitignorePath: string;
+  /** Observed mode of the written file, or null if it could not be read. */
+  fileMode: number | null;
+}
+
 export function writeMcpConfig(
   workspaceDir: string,
   mcpId: string,
   config: Record<string, unknown>
-): { success: boolean; message: string; configPath: string } {
+): McpWriteResult {
   const target = getMcpConfigTarget(workspaceDir);
   const configPath = target.path;
   let existing: Record<string, unknown> = {};
@@ -311,8 +354,13 @@ export function writeMcpConfig(
   }
 
   const tempPath = `${configPath}.${Date.now()}.tmp`;
+  let permissions: { applied: boolean; mode: number | null } = { applied: false, mode: null };
   try {
     writeFileSync(tempPath, JSON.stringify(existing, null, 2), 'utf-8');
+    // Harden the temp file BEFORE the rename: renaming preserves the mode, so
+    // this avoids any window where the secret exists under its final name with
+    // default permissions (REQ-009).
+    permissions = hardenPermissions(tempPath);
     if (existsSync(configPath)) {
       unlinkSync(configPath);
     }
@@ -324,10 +372,27 @@ export function writeMcpConfig(
     throw error;
   }
 
+  const git = ensureGitignored(workspaceDir, configPath);
+  const modeNote = permissions.applied
+    ? `权限已收紧为 0o${(permissions.mode as number).toString(8).padStart(3, '0')}`
+    : '本机文件系统不支持 POSIX 权限，权限未能收紧';
+  const gitNote = git.updated
+    ? `已自动把 ${git.pattern} 写入 ${git.gitignorePath}`
+    : `${git.pattern} 已在 ${git.gitignorePath} 中`;
+
+  const warning =
+    `⚠️  该配置可能以明文形式保存 API Key，且该文件位于工作区根目录。`
+    + `请确保该文件已被 gitignore（${gitNote}），不要提交到版本库。`
+    + `（${modeNote}；${configPath}）`;
+
   return {
     success: true,
     message: `已写入 ${mcpId} 配置到 ${configPath}`,
     configPath,
+    warning,
+    gitignoreUpdated: git.updated,
+    gitignorePath: git.gitignorePath,
+    fileMode: permissions.mode,
   };
 }
 
@@ -403,7 +468,7 @@ export function checkRuntime(workspaceDir: string): CheckResult[] {
     if (major >= MIN_NODE_MAJOR) {
       results.push({ category: 'runtime', name: 'node', status: 'ready', detail: `Node.js ${nodeVersion}` });
     } else {
-      results.push({ category: 'runtime', name: 'node', status: 'missing', detail: `Node.js ${nodeVersion} 版本过低`, guidance: '升级 Node.js' });
+      results.push({ category: 'runtime', name: 'node', status: 'missing', detail: `Node.js ${nodeVersion} 版本过低（需 ≥ ${MIN_NODE_MAJOR}）`, guidance: `升级 Node.js 至 ${MIN_NODE_MAJOR} 或更高` });
     }
   } else {
     results.push({ category: 'runtime', name: 'node', status: 'missing', detail: 'Node.js 未找到', guidance: '安装 Node.js' });

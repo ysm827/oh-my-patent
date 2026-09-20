@@ -23,5 +23,8 @@
 ```
 
 ## Output
-- 当前工作流状态（INIT / RESEARCH / BRAINSTORM_R1 / ...）
+- 当前工作流状态，取值为 10 个阶段之一：
+  `INIT` / `RESEARCH` / `BRAINSTORM_R1` / `BRAINSTORM_R2` / `DRAFT` /
+  `DIAGRAM_DRAFT` / `QA_LOOP` / `FINAL_REVIEW` / `DIAGRAM_FINAL` / `DONE`
+  （与 `src/core/workflow.ts` 的 `WorkflowStage` 一致，顺序即流转顺序）
 - 自动启动代理并输出处理结果到 `references/` 目录

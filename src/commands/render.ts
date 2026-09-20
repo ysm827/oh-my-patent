@@ -53,8 +53,84 @@ function pad(s: string, len: number): string {
   return s + ' '.repeat(padLen);
 }
 
-function section(title: string): string {
-  return `${BOX_MID}\n║  ${title.padEnd(55)}║\n${BOX_MID}`;
+/**
+ * Display width of one character (REQ-029).
+ *
+ * CJK text counts as 2 columns; box-drawing and block-element characters
+ * (═ ║ █ ░, U+2500–U+25FF) count as 1 — the naive `> 0x7f` check used by
+ * `pad()` treats them as wide, which is wrong for the border glyphs.
+ */
+function charWidth(ch: string): number {
+  const c = ch.charCodeAt(0);
+  if (c >= 0x2500 && c <= 0x25ff) return 1;
+  return c > 0x7f ? 2 : 1;
+}
+
+/**
+ * Truncate to at most `len` display columns, CJK-aware (REQ-029).
+ *
+ * `pad()` alone cannot keep a long CJK title inside the box: it only pads,
+ * never trims, and CJK chars count as 2 columns each, so a wide title
+ * overflowed the border. When truncation happens a trailing `…` marks it.
+ */
+function fit(s: string, len: number): string {
+  // Fast path: the whole string fits.
+  let width = 0;
+  let truncated = false;
+  let result = '';
+  for (const ch of s) {
+    const w = charWidth(ch);
+    if (width + w > len) {
+      truncated = true;
+      break;
+    }
+    width += w;
+    result += ch;
+  }
+  if (!truncated) {
+    return result;
+  }
+  // Reserve room for the trailing ellipsis (counted at 2 columns by
+  // charWidth) so the returned string never exceeds `len`.
+  const budget = len - 2;
+  width = 0;
+  result = '';
+  for (const ch of s) {
+    const w = charWidth(ch);
+    if (width + w > budget) {
+      break;
+    }
+    width += w;
+    result += ch;
+  }
+  return result + '…';
+}
+
+/**
+ * Inner width of a section title cell, in display columns.
+ *
+ * The box borders (BOX_TOP/MID/BOT) are 61 characters of 1-column box
+ * drawing each; a content row is `║` + 2 spaces + title + `║`, so the title
+ * cell is 61 - 4 = 57 columns. (The historical padEnd(55) left every
+ * section row 2 columns narrower than its surrounding border.)
+ */
+const SECTION_INNER_WIDTH = 57;
+
+/**
+ * Section divider row between two BOX_MID lines.
+ *
+ * The title is fitted to the box's inner width (57 display columns) so the
+ * border never overflows, no matter how long — or how wide (CJK) — the title
+ * is (REQ-029). Exported for width assertions in tests.
+ */
+export function section(title: string): string {
+  const fitted = fit(title, SECTION_INNER_WIDTH);
+  let width = 0;
+  for (const ch of fitted) {
+    width += charWidth(ch);
+  }
+  const padding = ' '.repeat(SECTION_INNER_WIDTH - width);
+  return `${BOX_MID}\n║  ${fitted}${padding}║\n${BOX_MID}`;
 }
 
 // ============================================================================
@@ -86,7 +162,9 @@ export async function renderOverview(projectPath: string): Promise<string> {
     L.push('║  SCORE PROGRESSION                                      ║');
     L.push(BOX_MID);
     const bar = (n: number) => {
-      const filled = Math.round(n);
+      // REQ-029: clamp to [0, 10] — scores outside the documented 1..10 range
+      // (or NaN) previously reached '█'.repeat(negative) and threw RangeError.
+      const filled = Math.min(10, Math.max(0, Math.round(Number.isFinite(n) ? n : 0)));
       return '█'.repeat(filled) + '░'.repeat(10 - filled);
     };
     for (const sp of overview.scoreProgression) {

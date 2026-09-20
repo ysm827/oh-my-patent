@@ -208,7 +208,7 @@ export function formatReport(report: InitReport): string;
 
 从以下路径读取 MCP 服务器配置：
 - Claude Code: `.claude/settings.json` → `mcpServers` 字段
-- OpenCode: `opencode.jsonc` → `mcpServers` 字段（需去注释后 JSON.parse）
+- OpenCode: `opencode.jsonc` → `mcpServers` 字段（需去注释后 JSON.parse）；若工作区无 `opencode.jsonc`，回退读取随仓库发布的 `opencode.jsonc.example` 模板
 
 #### 必检项
 
@@ -221,7 +221,7 @@ export function formatReport(report: InitReport): string;
 | Tool | mmdc | 是 | `mmdc --version` |
 | Tool | git | 是 | `git --version` |
 | Tool | plantuml-server | 否 | `curl` 检测 URL 可达性 |
-| Runtime | node | 是 | `node --version`，>= v18 |
+| Runtime | node | 是 | `node --version`，>= v22 |
 | Runtime | workspace-writable | 是 | 创建临时目录测试 |
 
 #### CLI 集成
@@ -691,7 +691,7 @@ export function validateProblemMap(parsed: ProblemMap): { valid: boolean; errors
 | MCP 配置缺失时报告 missing | 空 workspaceDir | google_scholar status = 'missing' |
 | MCP 配置存在时报告 ready | 含 mcpServers 的配置文件 | 对应 MCP status = 'ready' |
 | mmdc 可用时报告 ready | 有 mmdc 的环境 | mmdc status = 'ready' |
-| Node 版本过低时报告 missing | mock node < v18 | node status = 'missing' |
+| Node 版本过低时报告 missing | mock node < v22 | node status = 'missing' |
 | 工作目录不可写时报告 missing | mock 只读目录 | workspace-writable status = 'missing' |
 | formatReport 输出合法 markdown | 合法 InitReport | 输出包含总览表 + 分类详情 |
 | 阻塞项正确计数 | 2 个 missing tool | blockingCount = 2, ready = false |

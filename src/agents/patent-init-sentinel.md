@@ -67,7 +67,16 @@ node dist/cli.js check --json
 node dist/cli.js check --mcp-add patsnap_search --mcp-key "apikey=sk-用户提供的key"
 ```
 
-5. 告诉用户配置结果
+> ⚠️ **必须主动向用户说明的风险**：该命令会把 API Key **以明文写入工作区根目录的配置文件**
+> （Codex 工作区为 `codex.json`，Claude Code 工作区为 `.claude/settings.json`，其余为 `opencode.jsonc`）。
+> 命令会**自动把该文件加入 `.gitignore`**，并在文件系统支持时把权限收紧为 `0o600`，
+> 但**明文仍然留在磁盘上**。必须告知用户：
+>
+> - 请**确保该文件已被 gitignore**，不要提交到版本库；
+> - 不要把 Key 粘进任何会被提交的文档、日志或截图；
+> - 若 Key 已泄露，立即在服务商侧吊销并重新生成。
+
+5. 告诉用户配置结果，并**原样转述命令输出的警告**（JSON 的 `warning` 字段）
 
 #### 对于 stdio 类型的 MCP（如 google_scholar）
 

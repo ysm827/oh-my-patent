@@ -97,6 +97,14 @@ export interface ManifestEntry {
     svg: string;
     png: string;
   };
+  /**
+   * 该图最近一次渲染是否成功。
+   * 必须持久化：否则无法区分「渲染成功」与「从未渲染 / 渲染失败」，
+   * 重渲染时会把全部历史条目一并标记为成功（REQ-003）。
+   */
+  success: boolean;
+  /** 失败原因（`success` 为 false 时存在） */
+  error?: string;
 }
 
 // ============================================================================
@@ -107,7 +115,7 @@ export interface ManifestEntry {
  * 渲染器配置
  */
 export interface RendererConfig {
-  /** PlantUML server URL，默认 https://www.plantuml.com/plantuml */
+  /** PlantUML server URL，默认 `https://www.plantuml.com/plantuml`（可用环境变量覆盖，见 REQ-043） */
   plantumlServerUrl: string;
   /** 默认引擎 */
   defaultEngine: Engine;
@@ -115,16 +123,45 @@ export interface RendererConfig {
   mmdcPath: string;
   /** 渲染超时（毫秒），默认 30000 */
   timeout: number;
+  /** 批量渲染的最大并发数，默认 4（REQ-042） */
+  maxConcurrentRenders: number;
+}
+
+/**
+ * 覆盖 PlantUML 服务地址的环境变量名（REQ-043）。
+ *
+ * 存在的理由有二：① 企业内网通常无法访问公共 `plantuml.com`，须指向私有部署；
+ * ② 默认地址会把**技术方案源码**发送给第三方 —— 专利内容敏感，必须留出关闭通道。
+ */
+export const PLANTUML_SERVER_URL_ENV = 'PLANTUML_SERVER_URL';
+
+/**
+ * 默认 PlantUML 服务地址（公共服务器）。
+ */
+export const DEFAULT_PLANTUML_SERVER_URL = 'https://www.plantuml.com/plantuml';
+
+/**
+ * 解析默认 PlantUML 服务地址：环境变量优先，空值回落默认。
+ */
+function resolveDefaultPlantUmlServerUrl(): string {
+  const fromEnv = process.env[PLANTUML_SERVER_URL_ENV];
+  return typeof fromEnv === 'string' && fromEnv.trim() !== ''
+    ? fromEnv.trim()
+    : DEFAULT_PLANTUML_SERVER_URL;
 }
 
 /**
  * 默认渲染器配置
+ *
+ * ⚠️ `plantumlServerUrl` 在**模块加载时**读取一次环境变量。若需在进程运行中
+ * 改变，请显式构造 `new DiagramRenderer({ plantumlServerUrl })`。
  */
 export const DEFAULT_RENDERER_CONFIG: RendererConfig = {
-  plantumlServerUrl: 'https://www.plantuml.com/plantuml',
+  plantumlServerUrl: resolveDefaultPlantUmlServerUrl(),
   defaultEngine: 'mermaid',
   mmdcPath: 'mmdc',
   timeout: 30000,
+  maxConcurrentRenders: 4,
 };
 
 /**

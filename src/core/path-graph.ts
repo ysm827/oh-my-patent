@@ -13,6 +13,7 @@ import {
   BrainstormEdge,
   InnovationSnapshot,
   InnovationScore,
+  generatePathId,
 } from './brainstorm-path.js';
 
 // ============================================================================
@@ -89,7 +90,7 @@ export interface MergeRecord {
 export class BrainstormPathGraph {
   private nodes: Map<string, GraphNode>;
   private edges: Map<string, GraphEdge>;
-  private edgeIndex: Map<string, string>; // "from->to" -> edgeId for O(1) lookup
+  private edgeIndex: Map<string, Set<string>>; // "from->to" -> edge ids, O(1) lookup (REQ-020: a Set so parallel edges survive)
   private adjacencyList: Map<string, Set<string>>;
   private reverseAdjacencyList: Map<string, Set<string>>;
   private pathMeta: { id: string; projectId: string; topic: string; createdAt: string };
@@ -100,7 +101,7 @@ export class BrainstormPathGraph {
     this.edgeIndex = new Map();
     this.adjacencyList = new Map();
     this.reverseAdjacencyList = new Map();
-    this.pathMeta = { id: `path-${Date.now()}`, projectId: '', topic: '', createdAt: new Date().toISOString() };
+    this.pathMeta = { id: generatePathId(), projectId: '', topic: '', createdAt: new Date().toISOString() };
   }
 
   /**
@@ -173,10 +174,24 @@ export class BrainstormPathGraph {
 
   /**
    * 添加边
+   *
+   * REQ-020: endpoints must exist. The previous silent acceptance produced
+   * dangling edges that surfaced as traversal dead-ends; parallel edges
+   * (same pair, different id or type) are all kept — the index maps each
+   * `from->to` pair to the full set of edge ids.
    */
   addEdge(edge: GraphEdge): void {
+    if (!this.nodes.has(edge.from)) {
+      throw new Error(`Cannot add edge ${edge.id}: unknown source node "${edge.from}"`);
+    }
+    if (!this.nodes.has(edge.to)) {
+      throw new Error(`Cannot add edge ${edge.id}: unknown target node "${edge.to}"`);
+    }
+
     this.edges.set(edge.id, edge);
-    this.edgeIndex.set(`${edge.from}->${edge.to}`, edge.id);
+    const idsForPair = this.edgeIndex.get(`${edge.from}->${edge.to}`) || new Set<string>();
+    idsForPair.add(edge.id);
+    this.edgeIndex.set(`${edge.from}->${edge.to}`, idsForPair);
 
     // 更新正向邻接表
     const fromAdj = this.adjacencyList.get(edge.from) || new Set();
@@ -203,19 +218,18 @@ export class BrainstormPathGraph {
     const edge = this.edges.get(edgeId);
     if (!edge) return;
 
-    // 更新正向邻接表
-    const fromAdj = this.adjacencyList.get(edge.from);
-    if (fromAdj) {
-      fromAdj.delete(edge.to);
+    // REQ-020: adjacency lists connect node PAIRS, not edges. With parallel
+    // edges the pair stays connected until its LAST edge is removed.
+    const idsForPair = this.edgeIndex.get(`${edge.from}->${edge.to}`);
+    if (idsForPair) {
+      idsForPair.delete(edgeId);
+      if (idsForPair.size === 0) {
+        this.edgeIndex.delete(`${edge.from}->${edge.to}`);
+        // No other edge connects the pair — clean the adjacency lists.
+        this.adjacencyList.get(edge.from)?.delete(edge.to);
+        this.reverseAdjacencyList.get(edge.to)?.delete(edge.from);
+      }
     }
-
-    // 更新反向邻接表
-    const toRevAdj = this.reverseAdjacencyList.get(edge.to);
-    if (toRevAdj) {
-      toRevAdj.delete(edge.from);
-    }
-
-    this.edgeIndex.delete(`${edge.from}->${edge.to}`);
     this.edges.delete(edgeId);
   }
 
@@ -265,6 +279,19 @@ export class BrainstormPathGraph {
   }
 
   /**
+   * Whether any edge from `from` to `to` carries the given type.
+   * REQ-020: parallel edges make this a set scan instead of a single lookup.
+   */
+  private pairHasEdgeOfType(from: string, to: string, edgeType: EdgeType): boolean {
+    const idsForPair = this.edgeIndex.get(`${from}->${to}`);
+    if (!idsForPair) return false;
+    for (const edgeId of idsForPair) {
+      if (this.edges.get(edgeId)?.type === edgeType) return true;
+    }
+    return false;
+  }
+
+  /**
    * 获取指定类型的前驱节点
    */
   getPredecessorsByType(nodeId: string, edgeType: EdgeType): GraphNode[] {
@@ -272,9 +299,7 @@ export class BrainstormPathGraph {
     const predecessors: GraphNode[] = [];
 
     for (const id of predecessorIds) {
-      const edgeKey = this.edgeIndex.get(`${id}->${nodeId}`);
-      const edge = edgeKey ? this.edges.get(edgeKey) : undefined;
-      if (edge && edge.type === edgeType) {
+      if (this.pairHasEdgeOfType(id, nodeId, edgeType)) {
         const node = this.nodes.get(id);
         if (node) {
           predecessors.push(node);
@@ -293,9 +318,7 @@ export class BrainstormPathGraph {
     const successors: GraphNode[] = [];
 
     for (const id of successorIds) {
-      const edgeKey = this.edgeIndex.get(`${nodeId}->${id}`);
-      const edge = edgeKey ? this.edges.get(edgeKey) : undefined;
-      if (edge && edge.type === edgeType) {
+      if (this.pairHasEdgeOfType(nodeId, id, edgeType)) {
         const node = this.nodes.get(id);
         if (node) {
           successors.push(node);
@@ -354,7 +377,10 @@ export class BrainstormPathGraph {
           type: typeVal,
           description: (edge.properties.description as string) || '',
           changes: (edge.properties.changes as Array<{ type: 'add' | 'modify' | 'remove'; target: string; description: string }>) || []
-        }
+        },
+        // REQ-020: carry the graph edge type through serialization so a
+        // fromJSON(toJSON(g)) round trip preserves it.
+        type: edge.type
       });
     }
 
@@ -374,7 +400,7 @@ export class BrainstormPathGraph {
     const projectId = this.pathMeta.projectId || (firstRound?.properties.projectId as string) || '';
     const topic = this.pathMeta.topic || (firstRound?.properties.topic as string) || '';
     const createdAt = this.pathMeta.createdAt || (firstRound?.properties.timestamp as string) || new Date().toISOString();
-    const pathId = this.pathMeta.id || `path-${Date.now()}`;
+    const pathId = this.pathMeta.id || generatePathId();
 
     // 确定当前节点和状态
     const currentNodeId = lastRound?.id || '';
@@ -412,13 +438,31 @@ export class BrainstormPathGraph {
       for (const node of nodes) {
         graph.addNode(BrainstormPathGraph.createNodeFromBrainstormNode(node, data.projectId, data.topic));
       }
+    } else {
+      // REQ-020: addEdge now rejects dangling endpoints. When no node data is
+      // supplied, synthesize placeholder Round nodes from the id list so the
+      // imported path stays structurally complete.
+      for (const nodeId of data.nodes) {
+        const roundMatch = /^round-(\d+)$/.exec(nodeId);
+        graph.addNode({
+          id: nodeId,
+          type: 'Round',
+          label: roundMatch ? `Round ${roundMatch[1]}` : nodeId,
+          properties: {
+            round: roundMatch ? Number(roundMatch[1]) : 0,
+            timestamp: data.createdAt
+          }
+        });
+      }
     }
 
     // 重建边
     for (const edge of data.edges) {
       graph.addEdge({
+        // REQ-020: preserve the serialized type; legacy files without the
+        // field keep the historical default.
+        type: edge.type ?? 'DERIVES_FROM',
         id: edge.id,
-        type: 'DERIVES_FROM', // 默认类型
         from: edge.fromNodeId,
         to: edge.toNodeId,
         properties: {

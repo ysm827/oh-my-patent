@@ -16,7 +16,7 @@ import {
 import { listBranches } from '../commands/path-branch.js';
 import type { PathOverview, NodeDetail, InnovationHistory } from '../commands/path-query.js';
 import type { BrainstormPath, BrainstormNode } from '../core/brainstorm-path.js';
-import { STATUS_ICONS, ACTION_ICONS } from '../commands/shared.js';
+import { STATUS_ICONS, ACTION_ICONS, formatDate } from '../commands/shared.js';
 
 // ============================================================================
 // 视图类型
@@ -95,15 +95,27 @@ const Header: React.FC<HeaderProps> = ({ topic, view, round, totalRounds }) => {
 // 子组件: ScoreBar
 // ============================================================================
 
+/**
+ * Render the filled/empty bar for a score (REQ-028).
+ *
+ * Clamped so out-of-range values (12, -1, NaN, max < 1) can never reach
+ * `String.prototype.repeat` with a negative number — the previous inline
+ * computation threw `RangeError` and crashed the whole TUI.
+ */
+export function scoreBarString(score: number, max: number = 10): string {
+  const safeMax = Math.max(1, Math.round(max));
+  const filled = Math.min(safeMax, Math.max(0, Math.round(Number.isFinite(score) ? score : 0)));
+  const empty = Math.max(0, safeMax - filled);
+  return '█'.repeat(filled) + '░'.repeat(empty);
+}
+
 interface ScoreBarProps {
   score: number;
   max?: number;
 }
 
 const ScoreBar: React.FC<ScoreBarProps> = ({ score, max = 10 }) => {
-  const filled = Math.round(score);
-  const empty = max - filled;
-  const bar = '█'.repeat(filled) + '░'.repeat(empty);
+  const bar = scoreBarString(score, max);
 
   let color: string;
   if (score >= 8) color = 'green';
@@ -245,7 +257,7 @@ const NodeView: React.FC<NodeViewProps> = ({ detail, roundIndex, totalRounds }) 
         </Box>
         <Box marginRight={3}>
           <Text color="gray">Date:</Text>
-          <Text>{` ${new Date(detail.timestamp).toISOString().split('T')[0]}`}</Text>
+          <Text>{` ${formatDate(detail.timestamp)}`}</Text>
         </Box>
         {detail.predecessorId && (
           <Box marginRight={3}>
@@ -425,17 +437,41 @@ interface BranchesViewProps {
 
 const BranchesView: React.FC<BranchesViewProps> = ({ projectPath }) => {
   const [branches, setBranches] = useState<Array<{ branchId: string; branchReason: string; branchPointNodeId: string; status: string }>>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listBranches(projectPath).then((bs) => {
-      setBranches(bs.map((b) => ({
-        branchId: b.branchId,
-        branchReason: b.branchReason,
-        branchPointNodeId: b.branchPointNodeId,
-        status: b.status,
-      })));
-    });
+    let cancelled = false;
+    listBranches(projectPath)
+      .then((bs) => {
+        if (!cancelled) {
+          setBranches(bs.map((b) => ({
+            branchId: b.branchId,
+            branchReason: b.branchReason,
+            branchPointNodeId: b.branchPointNodeId,
+            status: b.status,
+          })));
+        }
+      })
+      .catch((err: unknown) => {
+        // REQ-028: a corrupt branch index used to leave the view silently
+        // blank; surface the error instead.
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [projectPath]);
+
+  if (error) {
+    return (
+      <Box flexDirection="column">
+        <Text bold color="yellow">Branches</Text>
+        <Text color="red">{`Error loading branches: ${error}`}</Text>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column">
@@ -532,7 +568,13 @@ const App: React.FC<AppProps> = ({ projectPath }) => {
   }, [projectPath]);
 
   // ── keyboard handling ──
-  useInput(async (input, key) => {
+  useInput((input, key) => {
+    // REQ-028: Ink does not await this callback, so declaring it `async`
+    // turned every rejection into an unhandled promise rejection (which can
+    // crash the process). Keep the callback synchronous and dispatch the
+    // async work through a wrapper that catches and surfaces errors.
+    void (async () => {
+      try {
     if (input === 'q') {
       exit();
       return;
@@ -603,6 +645,10 @@ const App: React.FC<AppProps> = ({ projectPath }) => {
         setView('overview');
       }
     }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
   });
 
   // ── render ──

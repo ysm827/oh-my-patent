@@ -9,8 +9,16 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { loadPath, loadNode, saveNode, initBrainstormDirectory } from '../core/path-persistence.js';
-import { BrainstormPath, BrainstormNode } from '../core/brainstorm-path.js';
+import {
+  loadPath, loadNode, initBrainstormDirectory,
+  loadInnovationSnapshot,
+} from '../core/path-persistence.js';
+import {
+  BRAINSTORM_DIR,
+  BRANCHES_DIR,
+  BRANCH_INDEX_FILE,
+} from '../core/path-constants.js';
+import { BrainstormPath } from '../core/brainstorm-path.js';
 
 // ============================================================================
 // 类型定义
@@ -64,8 +72,7 @@ interface BranchIndex {
 // 常量定义
 // ============================================================================
 
-const BRANCHES_DIR = 'branches';
-const INDEX_FILE = 'index.json';
+// 目录/文件名常量集中于 `../core/path-constants.js`（REQ-040）。
 
 // ============================================================================
 // 辅助函数
@@ -78,7 +85,7 @@ const INDEX_FILE = 'index.json';
  * @returns 分支目录路径
  */
 function getBranchesDir(projectPath: string): string {
-  return path.join(projectPath, '.brainstorm', BRANCHES_DIR);
+  return path.join(projectPath, BRAINSTORM_DIR, BRANCHES_DIR);
 }
 
 /**
@@ -88,7 +95,7 @@ function getBranchesDir(projectPath: string): string {
  * @returns 分支索引文件路径
  */
 function getBranchIndexPath(projectPath: string): string {
-  return path.join(getBranchesDir(projectPath), INDEX_FILE);
+  return path.join(getBranchesDir(projectPath), BRANCH_INDEX_FILE);
 }
 
 /**
@@ -279,13 +286,27 @@ export async function createBranchFromNode(
   for (const copiedNodeId of nodesToCopy) {
     const node = await loadNode(projectPath, copiedNodeId);
     if (node) {
-      // 为分支创建独立的节点文件，存储在分支特定目录
-      const branchNodesDir = path.join(getBranchesDir(projectPath), branchId, 'nodes');
+      // 为分支创建独立的节点文件。分支目录是自包含的迷你项目：布局与
+      // <projectPath>/.brainstorm/ 同构（REQ-026），因此把分支目录当作
+      // 项目根传给 loadInnovationSnapshot / loadNode 即可读回。
+      const branchNodesDir = path.join(getBranchesDir(projectPath), branchId, BRAINSTORM_DIR, 'nodes');
       await fs.mkdir(branchNodesDir, { recursive: true });
 
       const nodeFilePath = path.join(branchNodesDir, `round-${node.round}.json`);
       const nodeContent = JSON.stringify(node, null, 2);
       await fs.writeFile(nodeFilePath, nodeContent, 'utf-8');
+
+      // 5b. 一并复制该轮的创新点快照（REQ-026：分支上下文此前缺快照，
+      //     回溯分支节点时无法读到当时的创新点状态）。
+      const snapshot = await loadInnovationSnapshot(projectPath, node.round);
+      if (snapshot) {
+        const branchSnapshotsDir = path.join(
+          getBranchesDir(projectPath), branchId, BRAINSTORM_DIR, 'snapshots'
+        );
+        await fs.mkdir(branchSnapshotsDir, { recursive: true });
+        const snapshotFilePath = path.join(branchSnapshotsDir, `round-${node.round}-innovations.json`);
+        await fs.writeFile(snapshotFilePath, JSON.stringify(snapshot, null, 2), 'utf-8');
+      }
     }
   }
 

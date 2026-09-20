@@ -14,7 +14,9 @@ import {
   SkillDef,
   ToolAdapter,
   GenerateResult,
+  UninstallResult,
 } from '../types.js';
+import { stampGenerated } from '../generated-marker.js';
 
 export class OpenCodeAdapter implements ToolAdapter {
   readonly name = 'opencode';
@@ -55,10 +57,24 @@ export class OpenCodeAdapter implements ToolAdapter {
     ];
   }
 
+  /**
+   * Directories scanned by `adapt install --prune`.
+   *
+   * Deliberately independent of `def`: the point is to find files an older
+   * definition produced, so the list cannot be derived from the current one.
+   */
+  getManagedDirectories(): string[] {
+    return [
+      join('.opencode', 'agent'),
+      join('.opencode', 'command'),
+      join('.opencode', 'skills'),
+    ];
+  }
+
   async uninstall(
     def: PortableDef,
     workspaceDir: string,
-  ): Promise<{ filesRemoved: string[]; filesSkipped: string[]; success: boolean; message: string }> {
+  ): Promise<UninstallResult> {
     const filesRemoved: string[] = [];
     const filesSkipped: string[] = [];
 
@@ -102,6 +118,12 @@ export class OpenCodeAdapter implements ToolAdapter {
     };
   }
 
+  /**
+   * Generated agents land in `<workspaceDir>/.opencode/agent/`, which
+   * `loadAgents()` also reads as a workspace override source. The marker is
+   * what lets the loader tell this output apart from a hand-authored file —
+   * see `src/adapters/generated-marker.ts` (REQ-050 / REQ-051).
+   */
   private generateAgent(agent: AgentDef): string {
     const lines = [
       '---',
@@ -116,7 +138,7 @@ export class OpenCodeAdapter implements ToolAdapter {
     if (agent.model) lines.push(`model: ${JSON.stringify(agent.model)}`);
     if (agent.temperature !== undefined) lines.push(`temperature: ${agent.temperature}`);
     lines.push('---', '', agent.promptContent.trim() || agent.description || agent.name, '');
-    return lines.join('\n');
+    return stampGenerated(lines.join('\n'));
   }
 
   private fileContent(def: PortableDef, relPath: string): string {
@@ -134,7 +156,7 @@ export class OpenCodeAdapter implements ToolAdapter {
 
   private generateCommand(command: CommandDef): string {
     const prompt = command.promptContent?.trim() || `Execute the ${command.name} workflow.`;
-    return [
+    return stampGenerated([
       '---',
       `description: ${JSON.stringify(command.description)}`,
       'agent: archimedes',
@@ -146,14 +168,14 @@ export class OpenCodeAdapter implements ToolAdapter {
       '',
       '$ARGUMENTS',
       '',
-    ].join('\n');
+    ].join('\n'));
   }
 
   private generateSkill(skill: SkillDef): string {
     const content = skill.promptContent?.trim() || `# ${skill.name}\n\n${skill.description || skill.name}`;
-    if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(content)) return `${content}\n`;
+    if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(content)) return stampGenerated(`${content}\n`);
 
-    return [
+    return stampGenerated([
       '---',
       `name: ${skill.id}`,
       `description: ${JSON.stringify(skill.description || `Use when the patent workflow needs ${skill.name}.`)}`,
@@ -161,6 +183,6 @@ export class OpenCodeAdapter implements ToolAdapter {
       '',
       content,
       '',
-    ].join('\n');
+    ].join('\n'));
   }
 }

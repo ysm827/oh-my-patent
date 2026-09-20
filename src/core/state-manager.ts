@@ -1,5 +1,6 @@
-import { writeFileSync, readFileSync, mkdirSync, existsSync, renameSync, unlinkSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { atomicWriteFileSync } from './atomic-write.js';
 import { PatentState, validateState } from './state.js';
 
 export class StateManager {
@@ -14,29 +15,12 @@ export class StateManager {
     const projectDir = join(this.baseDir, projectSlug);
     const patentDir = join(projectDir, '.patent');
 
-    mkdirSync(patentDir, { recursive: true });
-
     const statePath = join(patentDir, 'state.json');
-    const tempPath = join(patentDir, `state.json.${Date.now()}.tmp`);
-
-    try {
-      writeFileSync(tempPath, JSON.stringify(state, null, 2), 'utf-8');
-
-      if (existsSync(statePath)) {
-        unlinkSync(statePath);
-      }
-
-      renameSync(tempPath, statePath);
-    } catch (error) {
-      if (existsSync(tempPath)) {
-        try {
-          unlinkSync(tempPath);
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-      throw error;
-    }
+    // REQ-016: temp file + rename with NO unlink of the target. The previous
+    // unlink-then-rename left a window where state.json did not exist; a
+    // crash there lost the file. rename over an existing file replaces it
+    // without that window.
+    atomicWriteFileSync(statePath, JSON.stringify(state, null, 2));
   }
 
   loadState(projectSlug: string): PatentState | null {

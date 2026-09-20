@@ -18,13 +18,20 @@
 
 ```
 项目根目录/.brainstorm/
-├── path.json              # 路径主文件
+├── path.json              # 路径主文件（BrainstormPath）
 ├── nodes/
 │   ├── round-1.json       # 第1轮节点
 │   └── round-2.json       # 第2轮节点
-└── snapshots/
-    ├── round-1-innovations.json  # 第1轮创新点快照
-    └── round-2-innovations.json  # 第2轮创新点快照
+├── snapshots/
+│   ├── round-1-innovations.json  # 第1轮创新点快照
+│   └── round-2-innovations.json  # 第2轮创新点快照
+└── branches/              # 分支（分叉探索）
+    ├── index.json         # 分支索引（BranchInfo 列表 + lastBranchNumber）
+    ├── {branchId}.json    # 分支的路径元数据（BrainstormPath 子集）
+    └── {branchId}/        # 分支目录：自包含迷你项目，布局与上层 .brainstorm/ 同构
+        └── .brainstorm/
+            ├── nodes/     # 分支节点文件 round-{n}.json
+            └── snapshots/ # 分支快照文件 round-{n}-innovations.json
 ```
 
 ## 输入数据
@@ -45,7 +52,7 @@
 
 ```typescript
 {
-  agentId: string;         // Agent 标识 (如 "patent-brainstorm-searcher")
+  agentId: string;         // Agent 标识（如 "patent-innovation-architect"，须为真实存在的 agent id）
   outputFile: string;      // 相对文件路径
   summary: string;         // 输出摘要
   keyPoints: string[];     // 关键要点
@@ -63,6 +70,8 @@
   differences: string[];   // 与现有技术的差异点
   status: 'active' | 'merged' | 'abandoned';
   mergedInto?: string;     // 如果被合并，记录合并到哪个方案
+  archiveReason?: string;  // 归档原因（archiveInnovation 写入；restoreInnovation 恢复时清除）
+  archivedAt?: string;     // 归档时间（ISO 8601；与 archiveReason 成对出现）
 }[]
 ```
 

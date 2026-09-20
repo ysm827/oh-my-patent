@@ -4,16 +4,12 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+// REQ-015: use the shared stateful stripper. The previous regex-based copy
+// truncated any string literal containing `//` (e.g. an `https://` URL).
+import { stripJsonComments } from '../../src/core/jsonc';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-function stripJsonComments(content: string): string {
-  return content
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/.*$/gm, '')
-    .replace(/,\s*([\]}])/g, '$1');
-}
 
 describe('E2E: Plugin Load', () => {
   test('plugin.jsonc is valid JSON', () => {

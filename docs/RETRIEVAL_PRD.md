@@ -143,7 +143,7 @@ oh-my-patent 的检索能力由 `RESEARCH` 工作流阶段驱动，涉及 4 层�
 **检测项**：
 1. MCP 服务器可用性（google_scholar / uspto_patent / semantic_scholar / cnipa_patent）
 2. 外部工具（mmdc / PlantUML Server / git）
-3. 运行时（Node.js 版本 >= 18、工作目录可写）
+3. 运行时（Node.js 版本 >= 22、工作目录可写）
 4. 项目状态（已有项目的 state.json 校验）
 5. 适配器目标检测（Claude Code / Codex / OpenCode）
 6. 法域相关数据源匹配（CN 法域检查 cnipa_patent，US 法域检查 uspto_patent）

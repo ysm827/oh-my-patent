@@ -25,6 +25,7 @@ import {
   renderInnovation,
   renderBranch,
   renderDashboard,
+  section,
 } from '../../src/commands/render';
 
 // ============================================================================
@@ -207,4 +208,85 @@ describe('render (passive)', () => {
     expect(out).toContain('No brainstorm path data');
     await fs.rm(emptyDir, { recursive: true, force: true });
   });
+
+  // ==========================================================================
+  // REQ-029: 宽度自适应与边界钳制
+  // ==========================================================================
+
+  test('section() keeps long CJK/ASCII titles inside the border width (REQ-029)', () => {
+    // 分隔线自身宽度作为基准：section 的每一行都必须与之等宽（显示列，
+    // box-drawing 字符按 1 列、CJK 按 2 列）
+    const mid = '╠═══════════════════════════════════════════════════════════╣';
+    const borderCols = displayWidth(mid);
+    const titles = [
+      'SHORT',
+      '一个已经超出内部宽度很多很多的超长中文标题——继续加长继续加长继续加长继续加长继续加长',
+      'An extremely long ASCII title that goes far beyond the box inner width, repeated repeated repeated repeated repeated',
+      '混合标题 mixed 混合标题 mixed 混合标题 mixed 混合标题 mixed 混合标题 mixed 混合标题',
+    ];
+    for (const title of titles) {
+      const rendered = section(title);
+      const lines = rendered.split('\n');
+      expect(lines).toHaveLength(3);
+      for (const line of lines) {
+        // 与 BOX_MID 相同的显示宽度（框线永不溢出）
+        expect(displayWidth(line)).toBe(borderCols);
+      }
+      // 标题区按显示列填充到内部宽度，不越界
+      const inner = lines[1].replace(/^║  /, '').replace(/║$/, '');
+      expect(displayWidth(inner)).toBeLessThanOrEqual(57);
+    }
+    // 短标题恰好填满内部宽度（与 BOX_MID 严格对齐）
+    expect(displayWidth(section('SHORT').split('\n')[1])).toBe(borderCols);
+  });
+
+  test('renderOverview sparkline survives out-of-range scores (REQ-029)', async () => {
+    // 分数超出文档化的 1..10 区间：>10 与负值。旧实现的
+    // '█'.repeat(Math.round(n)) 对这两种取值都抛 RangeError。
+    await saveNode(
+      mkNode(
+        3,
+        [mkInnovation('INN-001', '创新A-最终版'), mkInnovation('INN-009', '超范围创新')],
+        [
+          mkScore('INN-001', 9, 9, 9, 9),
+          mkScore('INN-009', 12, 12, 12, 12),
+        ],
+        'PASS_TO_DRAFT'
+      ),
+      testDir
+    );
+    await saveNode(
+      mkNode(2, [mkInnovation('INN-003', '创新C')], [mkScore('INN-003', -3, -3, -3, -3)], 'ITERATE'),
+      testDir
+    );
+
+    let out: string;
+    expect(async () => {
+      out = await renderOverview(testDir);
+    }).not.toThrow();
+
+    out = await renderOverview(testDir);
+    expect(out).toContain('SCORE PROGRESSION');
+    // 每个进度条行仍是 10 列的 █/░ 组合
+    const barLines = out.split('\n').filter((l) => l.includes('█') || l.includes('░'));
+    expect(barLines.length).toBeGreaterThan(0);
+    for (const line of barLines) {
+      const bars = (line.match(/[█░]/g) ?? []).length;
+      expect(bars).toBe(10);
+    }
+  });
 });
+
+/**
+ * CJK 感知的显示宽度：CJK/全角按 2 列；box-drawing 与块元素字符
+ * （═ ║ █ ░，U+2500–U+25FF）按 1 列——与 src/commands/render.ts 的
+ * charWidth() 同口径。
+ */
+function displayWidth(s: string): number {
+  let width = 0;
+  for (const ch of s) {
+    const c = ch.charCodeAt(0);
+    width += c >= 0x2500 && c <= 0x25ff ? 1 : c > 0x7f ? 2 : 1;
+  }
+  return width;
+}

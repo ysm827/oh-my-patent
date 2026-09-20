@@ -148,3 +148,30 @@ describe('updateFigureReferences', () => {
     expect(updated).toContain('图1 系统整体架构图（终版）');
   });
 });
+
+describe('figure reference side effects (REQ-025)', () => {
+  it('does not mutate the caller specs array (no in-place sort)', () => {
+    const specB = makeSpec({ figureId: 'fig2_flow', figureNumber: 2, title: '流程图' });
+    const specA = makeSpec({ figureId: 'fig1_arch', figureNumber: 1, title: '架构图' });
+    const input = [specB, specA]; // deliberately unsorted
+    const snapshot = [...input];
+
+    insertFigureReferences(MAIN_MD_WITH_SECTION, input, [makeResult(), makeResult({ figureId: 'fig2_flow' })]);
+
+    expect(input).toEqual(snapshot);
+    expect(input[0]).toBe(specB); // same objects, same order
+  });
+
+  it('updateFigureReferences truly replaces the section instead of appending', () => {
+    const spec = makeSpec({ phase: 'final', title: '终版图' });
+    const result = makeResult();
+    const once = updateFigureReferences(MAIN_MD_WITH_SECTION, [spec], [result]);
+    const twice = updateFigureReferences(once, [spec], [result]);
+
+    // Re-running the update must not duplicate the section or the reference.
+    expect(twice.match(/## 附图说明/g)).toHaveLength(1);
+    expect(twice.match(/!\[图1 终版图\]/g)).toHaveLength(1);
+    // The old placeholder content is gone.
+    expect(twice).not.toContain('（待补充）');
+  });
+});

@@ -15,8 +15,10 @@ import {
   existsSync, readdirSync, rmdirSync, rmSync,
 } from 'fs';
 import {
-  PortableDef, AgentDef, CommandDef, MCPServerDef, ToolAdapter, GenerateResult
+  PortableDef, AgentDef, CommandDef, MCPServerDef, ToolAdapter, GenerateResult, UninstallResult
 } from '../types.js';
+import { WORKFLOW_STAGE_ORDER } from '../../core/workflow.js';
+import { stampGenerated } from '../generated-marker.js';
 
 // ============================================================================
 // Claude Code adapter
@@ -30,8 +32,9 @@ export class ClaudeCodeAdapter implements ToolAdapter {
     const instructions: string[] = [];
 
     // 1. Generate per-agent prompt files under .claude/agents/
+    const enabledMcpServerIds = def.mcpServers.filter(s => s.enabled).map(s => s.id);
     for (const agent of def.agents) {
-      const promptContent = this.generateAgentPrompt(agent);
+      const promptContent = this.generateAgentPrompt(agent, enabledMcpServerIds);
       const agentFileName = `${agent.id}.md`;
       files.set(join('.claude', 'agents', agentFileName), promptContent);
     }
@@ -70,11 +73,11 @@ export class ClaudeCodeAdapter implements ToolAdapter {
   // Agent prompt generation
   // ==========================================================================
 
-  private generateAgentPrompt(agent: AgentDef): string {
+  private generateAgentPrompt(agent: AgentDef, enabledMcpServerIds: string[] = []): string {
     const parts: string[] = [];
 
-    // Build YAML frontmatter as first thing in the file (ccb/Claude Code requirement)
-    const fm = this.buildAgentFrontmatter(agent);
+    // Build YAML frontmatter as first thing in the file (Claude Code requirement)
+    const fm = this.buildAgentFrontmatter(agent, enabledMcpServerIds);
     parts.push('---');
     for (const [key, value] of Object.entries(fm)) {
       parts.push(`${key}: ${typeof value === 'string' ? JSON.stringify(value) : value}`);
@@ -119,30 +122,41 @@ export class ClaudeCodeAdapter implements ToolAdapter {
       }
     }
 
-    return parts.join('\n');
+    return stampGenerated(parts.join('\n'));
   }
 
   /**
-   * Build YAML frontmatter for ccb/Claude Code agent recognition.
+   * Build YAML frontmatter for Claude Code agent recognition.
    * Must appear at the very top of the .md file as `--- ... ---`.
+   *
+   * Verified against the official Claude Code sub-agents documentation
+   * (code.claude.com/docs/en/sub-agents, REQ-030):
+   * - `name` IS an official required frontmatter field (with `description`);
+   *   identity comes only from `name`, "the filename doesn't have to match".
+   * - `tools` is a comma-separated allowlist; omitting it inherits every
+   *   tool, and `mcp__<server>` / `mcp__<server>__*` patterns grant every
+   *   tool of a named MCP server.
+   *
+   * The tools list is therefore derived precisely from `permissions` —
+   * never `"*"`, which handed every agent the full tool surface (REQ-030).
    */
-  private buildAgentFrontmatter(agent: AgentDef): Record<string, string | boolean> {
+  private buildAgentFrontmatter(agent: AgentDef, enabledMcpServerIds: string[]): Record<string, string | boolean> {
     const fm: Record<string, string | boolean> = {};
     fm.name = agent.id;
     fm.description = agent.description;
 
-    // Tools: "*" means all tools (bash, write, edit, mcp, etc.)
-    // Claude Code frontmatter: if tools is missing, agent gets all tools by default
-    if (agent.permissions.bash || agent.permissions.mcp) {
-      // MCP tool names are assigned by Claude Code at runtime. Inherit the
-      // session tools so MCP-enabled agents can access the configured servers.
-      fm.tools = "*";
-    } else {
-      const tools = ['Read', 'Glob', 'Grep'];
-      if (agent.permissions.write) tools.push('Write');
-      if (agent.permissions.edit) tools.push('Edit');
-      fm.tools = tools.join(', ');
+    const tools = ['Read', 'Glob', 'Grep'];
+    if (agent.permissions.write) tools.push('Write');
+    if (agent.permissions.edit) tools.push('Edit');
+    if (agent.permissions.bash) tools.push('Bash');
+    // Official wildcard pattern: one entry per enabled MCP server covers all
+    // of that server's tools without inheriting the rest of the session.
+    if (agent.permissions.mcp) {
+      for (const serverId of enabledMcpServerIds) {
+        tools.push(`mcp__${serverId}`);
+      }
     }
+    fm.tools = tools.join(', ');
 
     if (agent.model) {
       fm.model = agent.model;
@@ -211,7 +225,7 @@ export class ClaudeCodeAdapter implements ToolAdapter {
       parts.push('- Any generated files or updated state.');
     }
 
-    return parts.join('\n');
+    return stampGenerated(parts.join('\n'));
   }
 
   // ==========================================================================
@@ -339,7 +353,8 @@ export class ClaudeCodeAdapter implements ToolAdapter {
     lines.push('### Workflow State Machine');
     lines.push('');
     lines.push('```');
-    lines.push('INIT → RESEARCH → BRAINSTORM_R1 → BRAINSTORM_R2 → DRAFT → QA_LOOP → FINAL_REVIEW → DIAGRAM → DONE');
+    // 由 WorkflowStage 派生，避免与状态机漂移（REQ-012）
+    lines.push(WORKFLOW_STAGE_ORDER.join(' → '));
     lines.push('```');
     lines.push('');
     lines.push('- QA_LOOP can transition back to DRAFT');
@@ -434,7 +449,22 @@ export class ClaudeCodeAdapter implements ToolAdapter {
     return paths;
   }
 
-  async uninstall(def: PortableDef, workspaceDir: string): Promise<{ filesRemoved: string[]; filesSkipped: string[]; success: boolean; message: string }> {
+  /**
+   * Directories scanned by `adapt install --prune`.
+   *
+   * Deliberately independent of `def`: the point is to find files an older
+   * definition produced, so the list cannot be derived from the current one.
+   * `CLAUDE.md` and `.claude/settings.json` are single files that every run
+   * overwrites, so they need no pruning and are not listed here.
+   */
+  getManagedDirectories(): string[] {
+    return [
+      join('.claude', 'agents'),
+      join('.claude', 'commands'),
+    ];
+  }
+
+  async uninstall(def: PortableDef, workspaceDir: string): Promise<UninstallResult> {
     const filesRemoved: string[] = [];
     const filesSkipped: string[] = [];
     const { homedir } = await import('os');
@@ -456,7 +486,12 @@ export class ClaudeCodeAdapter implements ToolAdapter {
       removeExact(resolve(workspaceDir, relPath), relPath);
     }
 
-    // 2. Global ccb files
+    // 2. Global ccb files — `~/.claude-best/` is a NON-standard directory:
+    //    `adapt install` copies agent/command .md files there so they are
+    //    reachable from any cwd when running via ccb (Claude Code Best); see
+    //    the "For ccb (Claude Code Best)" block in adaptInstall (src/cli.ts).
+    //    Uninstall mirrors that copy — it only removes the exact files this
+    //    plugin wrote, and only rmdir's the directories when empty (REQ-031).
     const ccbAgentsDir = resolve(homedir(), '.claude-best', 'agents');
     const ccbCommandsDir = resolve(homedir(), '.claude-best', 'commands');
     for (const agent of def.agents) {

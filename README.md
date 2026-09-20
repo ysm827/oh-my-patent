@@ -2,7 +2,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/oh-my-patent.svg)](https://www.npmjs.com/package/oh-my-patent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/tests-123%20passing-brightgreen.svg)](https://github.com/illusionaireal/oh-my-patent)
+[![Tests](https://img.shields.io/badge/tests-269%20passing-brightgreen.svg)](https://github.com/illusionaireal/oh-my-patent)
 [![中文](https://img.shields.io/badge/中文-切换-orange.svg)](./README.zh-CN.md)
 
 <div align="center">
@@ -32,7 +32,7 @@
 
 <div align="center">
 
-**One command. Eleven agents. One patent disclosure.**
+**One command. Fourteen agents. One patent disclosure.**
 
 ```bash
 npm install -g oh-my-patent
@@ -58,7 +58,7 @@ oh-my-patent adapt setup --workspace-dir .
 | Your pain | In other tools | With `oh-my-patent` |
 |---|---|---|
 | **10 AI windows, manual merge** | Cut & paste chat logs, consolidate yourself | **Archimedes** orchestrator routes to 11 specialists. Outputs auto-saved to `references/`, context passes between rounds |
-| **Rejected ideas lost forever** | Chat history scrolls away — that one great idea from round 2 is gone | **`.brainstorm/` decision DAG** persists every round's scores, snapshots, and pass/reject decisions. Roll back, fork, or revive |
+| **Rejected ideas lost forever** | Chat history scrolls away — that one great idea from round 2 is gone | **`.brainstorm/` decision path** persists every round's scores, snapshots, and pass/reject decisions. Roll back, fork, or revive |
 | **Visio → screenshot → Word** | Draw by hand, export, reformat, lose the source file | **Mermaid/PlantUML rendering** extracts architecture from `MAIN.md`, renders SVG+PNG, and auto-rewrites figure references |
 | **Per-editor, per-teammate config** | Claude Code settings. Codex settings. OpenCode settings. Separate. Manual. Every time. | **`oh-my-patent adapt setup`** — one command generates configs for all supported editors. Uninstall is one command, removing *only* what we generated |
 | **Crash mid-project = start over** | Scramble through screenshots, guess where you left off | **Workflow state machine** — all stages written to `state.json`, decision tree in `path.json`. Resume from the exact point of failure |
@@ -72,10 +72,10 @@ oh-my-patent adapt setup --workspace-dir .
 
 | | |
 |---|---|
-| 🧠 **Decision-path tracking**<br>`.brainstorm/` records every round's scores, innovations, and decisions as an auditable DAG. Roll back to any node, fork alternatives, revive abandoned ideas. | 🤖 **11-agent end-to-end pipeline**<br>Search → ideation → patentability → draft → review → diagrams. The full patent lifecycle, zero hand-holding between stages. |
+| 🧠 **Decision-path tracking**<br>`.brainstorm/` records every round's scores, innovations, and decisions as an auditable decision path. Roll back to any node, fork alternatives, revive abandoned ideas. | 🤖 **13-specialist end-to-end pipeline**<br>Search → ideation → patentability → draft → review → diagrams. The full patent lifecycle, zero hand-holding between stages. |
 | ⚡ **`/archimedes` one-liner**<br>Start every task with Archimedes. He reads your state, routes to specialists, waits for output, and advances to the next stage. | 🔗 **Zero-config adapters**<br>`oh-my-patent adapt setup` generates configs for Claude Code, Codex, and OpenCode simultaneously. One command, all editors. |
 | 🛡️ **Safe uninstall**<br>Exact-file removal — only deletes what we auto-generated. No `readdir + unlink` traversing your workspace. Your custom edits are safe. | 📊 **Auto figure rendering**<br>Parses `MAIN.md` for technical architecture, renders Mermaid/PlantUML to SVG+PNG, and auto-rewrites figure references in-place. |
-| 🎯 **Scoring thresholds & QA loops**<br>Quantitative model judges if brainstorming is mature. Up to 6 QA rounds, exiting when 2 consecutive rounds produce zero new issues. | 🔄 **Resumable state machine**<br>`INIT → RESEARCH → BRAINSTORM → DRAFT → QA_LOOP → FINAL_REVIEW → DIAGRAM → DONE`. Crashes are non-destructive. Resume from `state.json`. |
+| 🎯 **Scoring thresholds & QA loops**<br>Quantitative model judges if brainstorming is mature. QA/argue loop exits when 2 consecutive rounds produce zero new issues. | 🔄 **Resumable state machine**<br>`INIT → RESEARCH → BRAINSTORM → DRAFT → QA_LOOP → FINAL_REVIEW → DIAGRAM → DONE`. Crashes are non-destructive. Resume from `state.json`. |
 
 ---
 
@@ -101,8 +101,8 @@ User proposes a topic
        │
 04  │  BRAINSTORM_R2 Parallel multi-dimensional evaluation
     │                security-engineer + compliance-analyst + patentability-evaluator
-    │                Weighted score: S = 0.3·S_sec + 0.3·S_comp + 0.4·S_pat
-    │                Threshold: S ≥ 8.5 and every dimension ≥ 6.0
+    │                Weighted score: S = 0.3·nov + 0.3·cre + 0.2·pra + 0.2·biz
+    │                Threshold: S ≥ 8.5; red-lines: novelty ≥ 6.0, creativity ≥ 6.0
        │  ←── threshold fail loops back to BRAINSTORM_R1
 05  │  DRAFT         Generate initial disclosure
     │                → MAIN.md (by disclosure-writer)
@@ -130,13 +130,14 @@ User proposes a topic
 
 ## Ⅳ.&ensp; THE AGENTS
 
-*11 specialists, 5 collaboration patterns.*
+*13 specialists + 1 orchestrator, 5 collaboration patterns.*
 
 ### The agents at a glance
 
 | Agent | Role | Invoked in |
 |---|---|---|
 | `archimedes` | Primary orchestrator, state-machine dispatcher | Every stage |
+| `init-sentinel` | Pre-flight environment & MCP readiness check | Before RESEARCH |
 | `landscape-analyst` | Prior-art search, technology landscape | RESEARCH |
 | `innovation-architect` | TRIZ-based candidate generation | BRAINSTORM_R1 |
 | `adversarial-examiner` | Examiner-perspective invalidation attacks | R1, QA_LOOP |
@@ -173,13 +174,13 @@ The agents are wired into five distinct patterns, not a flat queue.
 
 Fan-out / fan-in. Archimedes dispatches survivors to three evaluators in parallel:
 
-| Evaluator | Dimension | Score |
-|---|---|---|
-| `security-engineer` | Vulnerabilities, side-channel risks | `S_sec` |
-| `compliance-analyst` | Regulatory, privacy | `S_comp` |
-| `patentability-evaluator` | Novelty, creativity, utility | `S_pat` |
+| Evaluator | Focus |
+|---|---|
+| `security-engineer` | Vulnerabilities, side-channel risks |
+| `compliance-analyst` | Regulatory, privacy |
+| `patentability-evaluator` | Novelty, creativity, utility, business value |
 
-`brainstorm-moderator` aggregates: `S = 0.3·S_sec + 0.3·S_comp + 0.4·S_pat`. Passes only if `S ≥ 8.5` and every dimension clears its red-line (`≥ 6.0`).
+`brainstorm-moderator` aggregates the four scoring dimensions: `S = 0.3·S_novelty + 0.3·S_creativity + 0.2·S_practicality + 0.2·S_business` (weights configurable via `ThresholdConfig.weights`). Passes only if `S ≥ 8.5` and the red-line dimensions clear their floor (`novelty ≥ 6.0`, `creativity ≥ 6.0`).
 
 #### Pattern 4 — QA Argue Loop
 
@@ -187,11 +188,11 @@ Fan-out / fan-in. Archimedes dispatches survivors to three evaluators in paralle
 
 Bounded loop with quantitative exit. Three reviewers raise issues; `technical-responder` writes revisions with explicit MAIN.md patch locations. Exit requires **2 consecutive rounds with 0 new issues**.
 
-#### Pattern 5 — Decision Path DAG
+#### Pattern 5 — Decision Path with Branching
 
-![Decision path DAG](docs/images/ai-gen/图5.png)
+![Decision path with branching](docs/images/ai-gen/图5.png)
 
-Every round is a node in a DAG under `.brainstorm/`. Two operations on top of the linear path:
+Every round is a node in a branchable decision path under `.brainstorm/`. Two operations on top of the linear path:
 
 - **`path branch --from-node <id>`** &mdash; fork from any historical node
 - **`path restore --node <id> --innovation <id>`** &mdash; revive an abandoned innovation
@@ -210,6 +211,9 @@ npm install -g oh-my-patent
 cd your-patent-projects
 oh-my-patent adapt setup --workspace-dir .
 ```
+
+`--workspace-dir` defaults to the **current working directory**, so after the `cd` above
+`--workspace-dir .` is optional and both forms are equivalent.
 
 This generates configs for **Claude Code** (`.claude/` + `CLAUDE.md`), **Codex** (`.codex/` + `AGENTS.md` + `codex.json`), and **OpenCode** (`.opencode/agent/`, `.opencode/command/`, and `.opencode/skills/`). After this, use `/archimedes` in your editor.
 
@@ -277,6 +281,23 @@ oh-my-patent <domain> <subcommand> [options]
 | `diagram status <project>` | List rendered figures (number, phase, paths) |
 | `diagram rerender <project> --figure <ID> --source <mmd\|@file> --engine mermaid\|plantuml` | Update a single figure |
 
+> **⚠️ PlantUML figures leave your machine.** PlantUML is rendered by a remote HTTP
+> service, which means **the diagram source is sent to a third party**. Patent drafts are
+> confidential, so point the CLI at a private deployment before rendering anything
+> sensitive:
+>
+> ```bash
+> export PLANTUML_SERVER_URL="https://plantuml.internal.example/plantuml"
+> ```
+>
+> The default is `https://www.plantuml.com/plantuml`. Mermaid figures are rendered
+> locally by `mmdc` and never leave the machine.
+>
+> Renders are validated **before** anything is written to `figures/`. A non-2xx status, an
+> `X-PlantUML-Diagram-Description` of `(Error)`, an unexpected `Content-Type`, a body that
+> is not a real PNG/SVG, or the server's own `Welcome to PlantUML!` placeholder is recorded
+> as a **failure** in `figures-manifest.json` — never as a silently wrong image.
+
 ### Adapters (`adapt`)
 
 | Subcommand | What it does |
@@ -285,6 +306,30 @@ oh-my-patent <domain> <subcommand> [options]
 | `adapt install` | Same as `setup` |
 | `adapt uninstall [--tool ...] [--workspace-dir .]` | Exact-file removal only |
 | `adapt generate` | Write to `plugins/<tool>/` only |
+| `adapt generate --output <dir>` | Write `<dir>/<tool>/` -- one subdirectory per adapter, no cross-adapter overwrite |
+
+### MCP servers and API keys
+
+Some retrieval MCPs need an API key (for example `patsnap_search`). Add one with:
+
+```bash
+oh-my-patent check --mcp-add patsnap_search --mcp-key "apikey=sk-your-key"
+```
+
+> **The key is written to disk in plaintext.** The config file is `codex.json` (Codex
+> workspace), `.claude/settings.json` (Claude Code), or `opencode.jsonc` otherwise --
+> all in the workspace root, where a plain `git add -A` would pick them up.
+>
+> What the command does to limit the damage:
+> - appends the config file to the workspace `.gitignore` (skipped when already ignored)
+> - tightens the file to `0o600` where the filesystem supports POSIX modes, and says so
+>   when it does not
+> - prints the warning to stderr **and** includes it in the `warning` field of its JSON
+>   output, so a scripted caller can surface it too
+>
+> What it cannot do is remove the plaintext key from disk. Treat that file as a secret:
+> do not commit it, do not paste it into issues, logs or screenshots, and rotate the key
+> if it ever leaves your machine.
 
 ### Interactive TUI (`tui`)
 
@@ -336,7 +381,7 @@ oh-my-patent/                    # Core repo: configs and engine
 │   ├── cli.ts                   # CLI entry
 │   ├── core/
 │   │   ├── brainstorm-path.ts   # Decision-path data model + thresholds
-│   │   ├── path-persistence.ts  # Atomic writes + rollback
+│   │   ├── path-persistence.ts  # Brainstorm path snapshots (atomic temp+rename writes)
 │   │   ├── path-graph.ts        # Graph structure + fork algorithms
 │   │   ├── diagram-renderer.ts  # Mermaid/PlantUML → SVG/PNG
 │   │   └── threshold-config.ts  # Quantitative threshold model
@@ -374,9 +419,35 @@ projects/{NN}-{topic_slug}/      # One Git repo per patent
 
 ```bash
 npm run build  # Compile TypeScript → dist/
-npm test       # Run vitest test suite (123 passing)
+npm test       # Run vitest test suite (269 passing)
 npm run lint   # tsc --noEmit type checking
 ```
+
+`npm test` runs `npm run build` first via a `pretest` hook, so a fresh clone can go
+straight to `npm test` without a manual build step.
+
+### Dependency audit
+
+Measured on 2026-09-20 with `npm audit`:
+
+| Scope | Result |
+|---|---|
+| `npm audit --omit=dev` (the runtime tree: `ink` + `react`) | **0 vulnerabilities** |
+| `npm audit` (includes `devDependencies`) | **2 moderate**, both from `@vitest/mocker` (dev-only) |
+
+The two remaining findings are in the test toolchain and are only fixable by
+`npm audit fix --force`, which jumps to Vitest 4 — a breaking change deliberately not
+taken here. The runtime tree is clean.
+
+---
+
+## Ⅸ.&ensp; GOVERNANCE
+
+This repository is governed by a project constitution. It states the boundaries, evidence,
+human-gating, security, and determinism rules that any change to workflow logic must uphold.
+It is a contributor self-check — read it before opening a PR that touches orchestration.
+
+📜 **[CONSTITUTION.md](CONSTITUTION.md)** — Patent Disclosure Workflow Core Constitution
 
 ---
 

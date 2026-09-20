@@ -1,0 +1,47 @@
+# 持续集成：PR 与 push 上的构建 / 类型检查 / 测试（REQ-046 / DEC-4）
+#
+# 存在的理由：在此之前全仓库唯一的 workflow 只监听 `release: [created]` 与
+# `workflow_dispatch`，而 `CONTRIBUTING.md` 与 `docs/specs/README.md` 都写着
+# 「PR 会跑检查」—— 那是一句**虚假声明**（H2）。本文件让该声明成立。
+#
+# 范围刻意收窄（RK-5）：只跑 build / lint / test，**不碰发布**，避免消耗额度
+# 与误发布。发布链路仍归 `npm-publish.yml`。
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+# 默认最小权限：本作业只需要读代码（REQ-045）。
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          # 22 = `package.json` `engines.node` 的下限，与发布链路一致（REQ-037）。
+          # 不跑 18/20 矩阵：`ink@^7` 自身要求 >=22，且这两个版本从未被实测过 ——
+          # 摆一个必然为红的矩阵等于又造一句未经核实的声明。
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Type-check
+        run: npm run lint
+      # `npm test` 会先触发 `pretest` → `npm run build`（REQ-044），
+      # 因此这里不需要再单独跑一次 build。
+      - name: Test
+        run: npm test

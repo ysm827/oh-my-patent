@@ -176,7 +176,11 @@ export async function getPathOverview(projectPath: string): Promise<PathOverview
   }
 
   return {
-    totalRounds: pathData.nodes.length,
+    // REQ-019: count the round nodes actually loaded from disk, matching
+    // getPathOverviewFromGraph() which counts Round-type nodes. The previous
+    // `pathData.nodes.length` counted ID list entries, which can include ids
+    // whose node file no longer exists and then disagree with the graph API.
+    totalRounds: nodes.length,
     currentRound: pathData.currentNodeId,
     status: pathData.status,
     innovationEvolution,

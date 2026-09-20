@@ -1,31 +1,23 @@
-import { PatentState } from './state.js';
+// Type-only import: erased at runtime, so `state.js` (which imports the stage
+// definitions from `workflow-stages.js`) does not form a runtime cycle with us.
+import type { PatentState } from './state.js';
+import {
+  WorkflowStage,
+  WORKFLOW_STAGE_ORDER,
+  toWorkflowStage,
+} from './workflow-stages.js';
 
-export enum WorkflowStage {
-  INIT = 'INIT',
-  RESEARCH = 'RESEARCH',
-  BRAINSTORM_R1 = 'BRAINSTORM_R1',
-  BRAINSTORM_R2 = 'BRAINSTORM_R2',
-  DRAFT = 'DRAFT',
-  DIAGRAM_DRAFT = 'DIAGRAM_DRAFT',
-  QA_LOOP = 'QA_LOOP',
-  FINAL_REVIEW = 'FINAL_REVIEW',
-  DIAGRAM_FINAL = 'DIAGRAM_FINAL',
-  DONE = 'DONE'
-}
+// 阶段的唯一定义点已迁至 `workflow-stages.js`（REQ-039）。此处重新导出，
+// 使既有调用点（`src/index.ts`、`src/adapters/**`、`tests/**`）无需改动。
+export { WorkflowStage, WORKFLOW_STAGE_ORDER };
+export type { WorkflowStageName } from './workflow-stages.js';
 
-const ALL_STAGES: WorkflowStage[] = [
-  WorkflowStage.INIT,
-  WorkflowStage.RESEARCH,
-  WorkflowStage.BRAINSTORM_R1,
-  WorkflowStage.BRAINSTORM_R2,
-  WorkflowStage.DRAFT,
-  WorkflowStage.DIAGRAM_DRAFT,
-  WorkflowStage.QA_LOOP,
-  WorkflowStage.FINAL_REVIEW,
-  WorkflowStage.DIAGRAM_FINAL,
-  WorkflowStage.DONE
-];
-
+/**
+ * 合法状态迁移表。
+ *
+ * `Record<WorkflowStage, …>` 提供**编译期**完备性约束：枚举新增成员而此处漏写
+ * 键，`tsc` 会直接报错（REQ-039）。
+ */
 const VALID_TRANSITIONS: Record<WorkflowStage, WorkflowStage[]> = {
   [WorkflowStage.INIT]: [WorkflowStage.RESEARCH],
   [WorkflowStage.RESEARCH]: [WorkflowStage.BRAINSTORM_R1],
@@ -38,10 +30,6 @@ const VALID_TRANSITIONS: Record<WorkflowStage, WorkflowStage[]> = {
   [WorkflowStage.DIAGRAM_FINAL]: [WorkflowStage.DONE],
   [WorkflowStage.DONE]: []
 };
-
-function isValidStage(value: string): value is WorkflowStage {
-  return ALL_STAGES.includes(value as WorkflowStage);
-}
 
 export class WorkflowMachine {
   private current: WorkflowStage = WorkflowStage.INIT;
@@ -73,13 +61,14 @@ export class WorkflowMachine {
   }
 
   static fromState(state: PatentState): WorkflowMachine {
-    if (!isValidStage(state.current_stage)) {
+    const current = toWorkflowStage(state.current_stage);
+    if (!current) {
       throw new Error(`Invalid current_stage: ${state.current_stage}`);
     }
 
     const machine = new WorkflowMachine();
-    machine.current = state.current_stage;
-    for (const stage of ALL_STAGES) {
+    machine.current = current;
+    for (const stage of WORKFLOW_STAGE_ORDER) {
       const stageState = state.stages[stage];
       if (stageState && stageState.status === 'completed') {
         machine.completed.add(stage);
@@ -90,7 +79,7 @@ export class WorkflowMachine {
 
   toState(): { current_stage: WorkflowStage; stages: Record<string, { status: string }> } {
     const stages: Record<string, { status: string }> = {};
-    for (const stage of ALL_STAGES) {
+    for (const stage of WORKFLOW_STAGE_ORDER) {
       stages[stage] = {
         status: this.completed.has(stage) ? 'completed' : 'pending'
       };

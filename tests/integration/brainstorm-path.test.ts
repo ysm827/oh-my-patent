@@ -15,8 +15,10 @@ import {
 	getSavedRounds,
 	initBrainstormDirectory,
 	loadAllNodes,
+	loadInnovationSnapshot,
 	loadNode,
 	loadPath,
+	saveInnovationSnapshot,
 	saveNode,
 	savePath,
 } from '../../src/core/path-persistence';
@@ -223,6 +225,8 @@ describe('BrainstormPath integration', () => {
 				createInnovationScore(`INN-${round}02`, 6 + round, 6 + round, 7 + round, 6 + round),
 			];
 			await saveNode(createTestNode(round, innovations, scores), testDir);
+			// REQ-026: 快照与节点并存，分支创建时应一并复制
+			await saveInnovationSnapshot(innovations, testDir, round);
 		}
 
 		const loadedPath = await loadPath(testDir);
@@ -246,6 +250,22 @@ describe('BrainstormPath integration', () => {
 		expect(branchDetail).not.toBeNull();
 		expect(branchDetail!.nodes).toHaveLength(2);
 		expect(branchDetail!.currentNodeId).toBe('round-2');
+
+		// REQ-026: 分支目录必须包含对应快照，且按分支目录为根的
+		// .brainstorm 同构布局可被 loadInnovationSnapshot 读回。
+		for (const nodeId of ['round-1', 'round-2']) {
+			const round = Number(nodeId.replace('round-', ''));
+			const branchSnapshot = await loadInnovationSnapshot(
+				path.join(testDir, '.brainstorm', 'branches', branchResult.branchId),
+				round
+			);
+			expect(branchSnapshot).not.toBeNull();
+			expect(branchSnapshot).toHaveLength(2);
+			expect(branchSnapshot!.map(i => i.id).sort()).toEqual([`INN-${round}01`, `INN-${round}02`]);
+			// 与主路径的快照内容一致
+			const mainSnapshot = await loadInnovationSnapshot(testDir, round);
+			expect(branchSnapshot).toEqual(mainSnapshot);
+		}
 
 		const deleted = await deleteBranch(testDir, branchResult.branchId);
 		expect(deleted).toBe(true);
@@ -294,9 +314,22 @@ describe('BrainstormPath integration', () => {
 		expect(archiveResult.innovationId).toBe('INN-001');
 		expect(archiveResult.reason).toBe('技术实现过于复杂');
 
+		// REQ-026: 归档原因必须持久化到节点数据，重载后仍可读回
+		const reloadedAfterArchive = await loadNode(testDir, 'round-1');
+		const archivedInn = reloadedAfterArchive!.innovations.find(i => i.id === 'INN-001');
+		expect(archivedInn!.archiveReason).toBe('技术实现过于复杂');
+		expect(archivedInn!.archivedAt).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/));
+
 		const archivedStatus = await getInnovationStatus(testDir, 'INN-001');
 		expect(archivedStatus).not.toBeNull();
 		expect(archivedStatus!.currentStatus).toBe('abandoned');
+
+		// REQ-026: 恢复时归档原因与时间应被对称清除
+		await restoreInnovation(testDir, 'round-1', 'INN-001');
+		const reloadedAfterRestore = await loadNode(testDir, 'round-1');
+		const restoredInn = reloadedAfterRestore!.innovations.find(i => i.id === 'INN-001');
+		expect(restoredInn!.archiveReason).toBeUndefined();
+		expect(restoredInn!.archivedAt).toBeUndefined();
 	});
 
 	test('tracks score progression across rounds', async () => {

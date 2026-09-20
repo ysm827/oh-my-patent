@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach } from 'vitest';
+import { join, sep } from 'path';
 import { validateConsistency } from '../../src/core/validator';
 
 const mockFs = {
@@ -32,7 +33,10 @@ describe('State Validator', () => {
 
   test('passes when all artifacts exist', () => {
     mockFs.files.set('.patent/state.json', true);
-    mockFs.files.set('projects/01-test/MAIN.md', true);
+    // REQ-023: the validator joins via path.join, so the mock must register
+    // the joined form (backslashes on Windows — the old expectation hardcoded
+    // the forward-slash interpolation bug).
+    mockFs.files.set(join('projects/01-test', 'MAIN.md'), true);
 
     const state = {
       project: { path: 'projects/01-test' },
@@ -55,5 +59,42 @@ describe('State Validator', () => {
 
     expect(result.consistent).toBe(false);
     expect(result.errors).toContain('State file not found');
+  });
+});
+
+describe('artifact path joining (REQ-023)', () => {
+  test('project paths with backslash separators resolve like path.join', () => {
+    mockFs.files.set('.patent/state.json', true);
+    mockFs.files.set(join('projects\\01-x', 'MAIN.md'), true);
+
+    const state = {
+      project: { path: 'projects\\01-x' },
+      current_stage: 'DRAFT',
+      stages: {
+        DRAFT: { status: 'in_progress', artifacts: ['MAIN.md'] }
+      }
+    };
+
+    const result = validateConsistency(state, mockFs.exists);
+    expect(result.missing).not.toContain('MAIN.md');
+    expect(result.consistent).toBe(true);
+  });
+
+  test('mixed-separator input is normalized through path.join', () => {
+    mockFs.files.set('.patent/state.json', true);
+    // The artifact check must produce join(projectPath, artifact) — the same
+    // string this test registers as existing — regardless of separators.
+    const projectPath = 'projects' + sep + '01-x';
+    mockFs.files.set(join(projectPath, 'MAIN.md'), true);
+
+    const state = {
+      project: { path: projectPath },
+      current_stage: 'DRAFT',
+      stages: {
+        DRAFT: { status: 'in_progress', artifacts: ['MAIN.md'] }
+      }
+    };
+
+    expect(validateConsistency(state, mockFs.exists).consistent).toBe(true);
   });
 });

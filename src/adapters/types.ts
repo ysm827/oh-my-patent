@@ -117,6 +117,19 @@ export interface GenerateResult {
   instructions: string[];
 }
 
+/**
+ * Result of `ToolAdapter.uninstall()` (REQ-031).
+ *
+ * Single definition shared by the interface and all three adapters; the
+ * inline object type used to be re-declared four times and could drift.
+ */
+export interface UninstallResult {
+  filesRemoved: string[];
+  filesSkipped: string[];
+  success: boolean;
+  message: string;
+}
+
 export interface ToolAdapter {
   readonly name: string;
 
@@ -132,9 +145,9 @@ export interface ToolAdapter {
    * Uninstall (clean up) tool-specific configuration files from the given workspace.
    * @param def           Portable plugin definition (used to derive file names)
    * @param workspaceDir  Workspace directory to clean up
-   * @returns             Human-readable instructions and a flag for whether files were cleaned
+   * @returns             Removed/skipped file lists and a success flag
    */
-  uninstall(def: PortableDef, workspaceDir: string): Promise<{ filesRemoved: string[]; filesSkipped: string[]; success: boolean; message: string }>;
+  uninstall(def: PortableDef, workspaceDir: string): Promise<UninstallResult>;
 
   /**
    * Return the list of file paths (relative to workspaceDir) that this adapter generates.
@@ -143,4 +156,18 @@ export interface ToolAdapter {
    * @returns    List of relative file paths
    */
   getGeneratedFilePaths(def: PortableDef): string[];
+
+  /**
+   * Return the directories (relative to workspaceDir) whose contents this
+   * adapter owns and may therefore prune.
+   *
+   * Used by `adapt install --prune` to find files left behind by an earlier
+   * version of the definition. A directory listed here is *scanned*, never
+   * wiped: a file is only removed when it is both absent from
+   * `getGeneratedFilePaths(def)` and recognisable as generated output.
+   *
+   * @param def  Portable plugin definition
+   * @returns    List of relative directory paths
+   */
+  getManagedDirectories(def: PortableDef): string[];
 }
