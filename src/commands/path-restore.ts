@@ -97,6 +97,10 @@ export async function restoreInnovation(
     delete innovation.mergedInto;
   }
 
+  // 5b. 清除归档原因与时间（REQ-026：与 archiveInnovation 对称）
+  delete innovation.archiveReason;
+  delete innovation.archivedAt;
+
   // 6. 保存节点
   await saveNode(node, projectPath);
 
@@ -145,6 +149,11 @@ export async function archiveInnovation(
 
   // 4. 更新状态
   innovation.status = 'abandoned';
+
+  // 4b. 持久化归档原因与时间（REQ-026：此前 reason 仅存在于返回消息中，
+  //     重启即丢；现在写入节点数据，重载后仍可读回）
+  innovation.archiveReason = reason;
+  innovation.archivedAt = new Date().toISOString();
 
   // 5. 保存节点
   await saveNode(node, projectPath);

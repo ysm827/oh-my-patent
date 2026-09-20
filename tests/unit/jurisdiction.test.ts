@@ -1,5 +1,12 @@
 import { describe, test, expect } from 'vitest';
-import { getJurisdictionRules, getClaimFormat, getExaminationTimeline, JurisdictionCode } from '../../src/skills/jurisdiction';
+import {
+  getJurisdictionRules,
+  getClaimFormat,
+  getExaminationTimeline,
+  JurisdictionCode,
+  SUPPORTED_JURISDICTIONS,
+  isValidJurisdiction
+} from '../../src/skills/jurisdiction';
 
 describe('Jurisdiction Skill', () => {
   test('returns CN rules for CN jurisdiction', () => {
@@ -30,5 +37,18 @@ describe('Jurisdiction Skill', () => {
     expect(rules.fees).toBeDefined();
     expect(rules.fees.filing).toBeGreaterThan(0);
     expect(rules.fees.examination).toBeGreaterThan(0);
+  });
+
+  test('REQ-017: SUPPORTED_JURISDICTIONS is the single source of truth', () => {
+    expect([...SUPPORTED_JURISDICTIONS]).toEqual(['CN', 'US', 'PCT']);
+  });
+
+  test('REQ-017: isValidJurisdiction accepts members and rejects EP/JP', () => {
+    expect(isValidJurisdiction('CN')).toBe(true);
+    expect(isValidJurisdiction('US')).toBe(true);
+    expect(isValidJurisdiction('PCT')).toBe(true);
+    expect(isValidJurisdiction('EP')).toBe(false);
+    expect(isValidJurisdiction('JP')).toBe(false);
+    expect(isValidJurisdiction('')).toBe(false);
   });
 });

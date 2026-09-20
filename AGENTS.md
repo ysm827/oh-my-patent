@@ -12,7 +12,7 @@ This is a TypeScript ESM CLI and multi-platform patent workflow plugin. Runtime 
 
 ## Build, Test, and Development Commands
 
-Run `npm install` with Node.js 18+ and npm 9+ to install dependencies. Use:
+Run `npm install` with Node.js 22+ and npm 9+ to install dependencies. Use:
 
 - `npm run build` to compile strict TypeScript into `dist/` with declarations and source maps.
 - `npm test` to run the Vitest suite once; pass a path such as `npm test tests/unit/workflow.test.ts` to target a file.
@@ -34,4 +34,4 @@ Use Conventional Commits, for example `feat(jurisdiction): add JP rules` or `fix
 
 ## Security & Configuration Tips
 
-Do not commit credentials, generated reports, temporary workflow state, or local plugin caches. Review changes to adapter configuration and `plugin.jsonc` carefully because they affect generated integrations and published package contents.
+Do not commit credentials, generated reports, temporary workflow state, or local plugin caches. Review changes to adapter configuration and `plugin.jsonc` carefully because they affect generated integrations and published package contents. See [CONSTITUTION.md](CONSTITUTION.md) (Principle IV) for the governing rule on secrets and local paths.

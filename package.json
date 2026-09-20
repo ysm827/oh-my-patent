@@ -5,14 +5,19 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "bin": {
     "oh-my-patent": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
+    "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "npx tsc --noEmit"
+    "lint": "npx tsc --noEmit",
+    "prepublishOnly": "npm run lint && npm run build && npm test"
   },
   "keywords": [
     "patent",
@@ -34,7 +39,7 @@
     "dist/",
     "src/",
     "plugin.jsonc",
-    "opencode.jsonc",
+    "opencode.jsonc.example",
     "assets/",
     "README.md",
     "README.zh-CN.md",

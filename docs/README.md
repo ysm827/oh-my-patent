@@ -52,11 +52,17 @@
 
 ### 规格文档
 
-- **[specs/](specs/)** - 产品规格和技术设计文档
+> **规格的规范位置是仓库根 `specs/`**（Spec Kit 约定 `specs/{NNN}-{slug}/`；依据见 [CONSTITUTION.md](../CONSTITUTION.md) 的 Operational Constraints 与 [CONTRIBUTING.md](../CONTRIBUTING.md#spec-first-changes) 的 Spec-First Changes）。`docs/specs/` 只是 v0.1.0 的历史快照，**不要在那里新增规格**。
+
+- ⭐ **[../specs/](../specs/)** - **规格的规范位置**：需求、技术方案与验收台账
+  - **[001-review-remediation/](../specs/001-review-remediation/)** - 仓库修复规格：`spec.md`（需求与决策）/ `plan.md`（逐循环技术方案）/ `tasks.md`（逐条判定与证据台账）
+- ⚠️ **[specs/](specs/)** - 产品规格和技术设计文档（**v0.1.0 历史快照**，冻结于 2026-06-17，不参与构建、不再更新；当前实现以 `src/` 与 `plugin.jsonc` 为准，见 [specs/README.md](specs/README.md) 顶部声明）
   - **[PRD.md](specs/PRD.md)** - 产品需求文档
   - **[TECHNICAL-DESIGN.md](specs/TECHNICAL-DESIGN.md)** - 技术设计规格
   - **[API-DESIGN.md](specs/API-DESIGN.md)** - API 设计文档
+  - **[PROGRESS-OUTPUT-ENHANCEMENT.md](specs/PROGRESS-OUTPUT-ENHANCEMENT.md)** - 进度输出增强方案
   - **[README.md](specs/README.md)** - 规格文档索引
+- **[../CONSTITUTION.md](../CONSTITUTION.md)** - 项目治理宪章（位于仓库根）
 
 ## 🎯 快速导航
 
@@ -73,6 +79,10 @@
 #### 贡献代码
 - 👉 阅读 [CONTRIBUTING.md](../CONTRIBUTING.md)
 - 👉 了解 [CLAUDE.md](../CLAUDE.md) 中的"开发工作流"和"技术栈"
+
+#### 写规格 / 了解规格流程
+- 👉 阅读 [CONTRIBUTING.md](../CONTRIBUTING.md#spec-first-changes) 的「Spec-First Changes」章节
+- 👉 查看 [../specs/001-review-remediation/](../specs/001-review-remediation/)，了解一份真实运行的规格长什么样（需求 → 技术方案 → 验收台账）
 
 #### 卸载 oh-my-patent
 - 👉 阅读 [README.zh-CN.md](../README.zh-CN.md) 的"卸载"章节
@@ -132,7 +142,7 @@ mmdc -i docs/workflow-diagram.md -o docs/workflow-diagram.png -w 2400
 
 ### 社区支持
 - **LINUX DO 社区**: https://linux.do/
-- **讨论区**: GitHub Discussions（即将开放）
+- **讨论区**: GitHub Discussions（当前未启用）
 
 ### 技术文档
 - **Mermaid 语法**: https://mermaid.js.org/
@@ -174,6 +184,6 @@ mmdc -i docs/workflow-diagram.md -o docs/workflow-diagram.png -w 2400
 
 ---
 
-**当前版本**: v0.1.0  
-**最后更新**: 2026-06-17  
+**当前版本**: v0.3.0（版本号以 `package.json` 为准）  
+**最后更新**: 2026-09-20  
 **维护者**: [@zengbods](https://github.com/zengbods)

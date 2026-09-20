@@ -90,7 +90,7 @@
 - 维护并更新文档产物：`MAIN.md`、`conversation.md`、`references/`。
 
 工作目录规则（核心仓库与项目仓库分离）：
-- 核心仓库 `D:\patents`（或当前工作区根目录）：仅包含工作流配置、代理定义和模板，不存放具体项目的交底书成果。
+- 核心仓库（即当前工作区根目录）：仅包含工作流配置、代理定义和模板，不存放具体项目的交底书成果。
 - 项目仓库 `projects/{NN}-{topic_slug}/`：每个专利选题对应一个独立的项目目录，该目录是一个独立的 Git 仓库。
 - NN 为两位递增序号（01, 02, 03...），topic_slug 为选题的 ASCII 短名称。
 
@@ -110,7 +110,7 @@
 
 执行约束：
 - 文档中心：所有产物必须写入当前 active project 目录（`projects/{NN}-{topic_slug}/`）。
-- 禁止在 `/patents` 根目录直接写入 MAIN.md 等成果文件。
+- 禁止在工作区根目录直接写入 MAIN.md 等成果文件。
 - 引用格式：使用 `[R#]` 角标并在文末 References 列表登记。
 - 检索默认：近 5 年、每源 5 条，聚合 MCP 结果并去重。
 - 退出条件：QA/argue 连续 2 轮无新增问题才进入最终润色。
@@ -121,7 +121,7 @@
 - 需要调用子代理时，必须在当前会话消息中以 `@agent-name` 方式发起，绝不能通过 `echo "@agent" > file.txt`、生成临时调用文件、或其他 shell 间接方式伪造调用。
 - 当前环境是 Windows PowerShell。若必须使用 shell：
   - 使用 PowerShell 兼容命令与路径；不要假定 `ls -la`、Unix 参数、或 Bash-only 语法可用。
-  - 仓库根目录已是 `D:\patents` 时，不要再写 `patents/projects/...`；应使用 `projects/...` 相对路径或完整 Windows 绝对路径。
+  - 工作区根目录本身就是核心仓库时，不要再写 `patents/projects/...`；应使用 `projects/...` 相对路径或完整 Windows 绝对路径。
   - 禁止通过 shell 去"尝试发现"代理/技能是否可执行；代理与技能由当前会话直接调用，不是 PATH 里的命令。
 - 若外部 provider/模型调用失败，不得改为发明不存在的 CLI 形式继续重试。应记录失败点、保留已生成产物，并直接继续使用已获取的真实材料推进到下一可执行阶段。
 
@@ -131,10 +131,20 @@
 - `@patent-...` 仅保留给人工交互/TUI 场景的示例写法；若当前是在代理自动执行流程中，应直接使用 `task` 工具。
 - 每次子代理输出后，必须将原文（或原文+轻量注释）落盘到 `references/`，文件名包含阶段与轮次。
 
-强制调用清单（不满足不得进入下一阶段）：
-- Brainstorm（每轮至少一次）：
-  - 必须调用：`@patent-innovation-architect`、`@patent-security-engineer`、`@patent-product-compliance-analyst`、`@patentability-evaluator`、`@patent-brainstorm-moderator`
+无原生子代理调用能力时的降级路径（REQ-035 / DEC-5）：
+- **触发条件**：当前编辑器/运行环境既没有 `task`/Agent 工具，也没有任何等价的原生子代理机制 —— 上面的强制门禁与"禁止模拟"在该环境下无法同时满足。
+- **降级方案**：先明确告知用户「本环境不支持真实子代理调用，将按单会话顺序执行各角色的检查清单」；然后按强制调用清单的顺序，在**同一会话内逐角色切换视角**完成工作，每个角色的产出独立成段，并按同名规范落盘到 `references/`。
+- **诚实标注**：降级产物文件头必须写入 `<!-- degraded: single-session, no real subagent -->`，且最终汇报中说明哪些环节未经独立子代理交叉验证，请用户重点复核。
+- **禁止事项不变**：仍不得虚构"子代理已调用"的假象，不得伪造子代理原始输出；降级是明示的替代路径，不是绕过门禁的借口。
+
+强制调用清单（不满足不得进入下一阶段；分工与 README「How they collaborate」保持一致，REQ-035）：
+- Brainstorm R1（候选生成与对抗筛选，每轮至少一次）：
+  - 必须调用：`@patent-innovation-architect`（TRIZ 候选生成）、`@patent-adversarial-examiner`（审查员视角攻击）、`@patent-brainstorm-moderator`（仲裁与预筛评分）
   - 建议调用：`@patent-landscape-analyst`（用于现有技术挑战）
+- Brainstorm R2（多维并行评审，每轮至少一次）：
+  - 必须调用：`@patentability-evaluator`（新颖性/创造性/实用性）、`@patent-security-engineer`（漏洞与侧信道）、`@patent-product-compliance-analyst`（法规与隐私合规）、`@patent-brainstorm-moderator`（加权聚合与阈值决策）
+- 每轮结束：
+  - 必须调用：`@patent-path-recorder`（持久化节点/快照/边）
 - Argue（每轮至少一次）：
   - 必须调用：`@patent-adversarial-examiner`（对抗式审查/无效视角）
   - 必须调用：`@patent-disclosure-reviewer`（撰写规范/法条口径）
@@ -287,7 +297,7 @@
 
 #### 核心数据结构
 
-**BrainstormPath** - 主路径文件（`.brainstorm/path.json`）：
+**BrainstormPath** - 主路径文件（`.brainstorm/path.json`，真实定义见 `src/core/brainstorm-path.ts`）：
 ```typescript
 {
   id: string;              // 路径唯一标识
@@ -296,41 +306,50 @@
   createdAt: string;       // 创建时间（ISO 8601）
   status: 'active' | 'completed' | 'abandoned';
   nodes: string[];         // 节点ID列表（按时间顺序）
-  edges: string[];         // 边ID列表（演化关系）
+  edges: BrainstormEdge[]; // 边对象数组（id / fromNodeId / toNodeId / transformation / type?）
   currentNodeId: string;   // 当前活跃节点ID
-  branches: BranchMeta[];  // 分支元数据
+  finalDecision?: {        // 终局决策（进入 DRAFT 时写入）
+    action: 'PASS_TO_DRAFT' | 'FORCE_PASS';
+    selectedInnovation: string;
+    timestamp: string;
+  };
 }
 ```
 
-**PathNode** - 节点文件（`.brainstorm/nodes/round-{n}.json`）：
+注意：分支元数据**不在** `path.json` 里，而是存于 `.brainstorm/branches/`（见下）。
+
+**BrainstormNode** - 节点文件（`.brainstorm/nodes/round-{n}.json`）：
 ```typescript
 {
   id: string;              // 节点ID（如 "round-1"）
   round: number;           // 轮次号
-  agentOutputs: AgentOutput[];  // 子代理输出引用
-  innovations: Innovation[];    // 创新点快照
-  scores: ScoreData[];          // 评分数据
-  decision: DecisionData;       // 决策数据
-  timestamp: string;            // 时间戳
+  agentOutputs: AgentOutputRef[];      // 子代理输出引用
+  innovations: InnovationSnapshot[];   // 创新点快照
+  scores: InnovationScore[];           // 评分数据
+  decision: RoundDecision;             // 决策数据
+  timestamp: string;                   // 时间戳
 }
 ```
 
 #### 分支机制
 
-分支用于探索不同的创新方向，每个分支维护独立的路径演化：
+分支用于探索不同的创新方向，每个分支维护独立的路径演化。真实定义见 `src/commands/path-branch.ts`：
 
 ```typescript
-interface BranchMeta {
-  id: string;              // 分支ID（如 "branch-1"）
-  sourceNodeId: string;    // 分支起始节点
-  innovationId: string;    // 关联的创新点ID
-  status: 'active' | 'abandoned' | 'merged';
-  description: string;     // 分支探索方向描述
-  pathFile: string;        // 分支路径文件路径
+interface BranchInfo {
+  branchId: string;          // 分支ID（如 "path-xxx-branch-1"）
+  parentPathId: string;      // 父路径ID
+  branchPointNodeId: string; // 分支点节点ID
+  branchReason: string;      // 分支原因
+  createdAt: string;         // 创建时间（ISO 8601）
+  status: 'active' | 'completed' | 'abandoned';
 }
 ```
 
-分支路径文件存储于 `.brainstorm/branches/{branch-id}.json`。
+分支落盘布局（`.brainstorm/branches/` 下）：
+- `index.json` —— 分支索引（`BranchInfo` 列表 + `lastBranchNumber`）
+- `{branchId}.json` —— 该分支的路径元数据（`BrainstormPath`：截断到分支点的 nodes/edges）
+- `{branchId}/.brainstorm/nodes/` 与 `{branchId}/.brainstorm/snapshots/` —— 分支节点与快照，布局与 `<projectPath>/.brainstorm/` **同构**（REQ-026）：把分支目录当作项目根传给 `loadNode` / `loadInnovationSnapshot` 即可读回。
 
 #### 回溯机制
 

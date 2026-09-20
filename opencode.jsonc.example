@@ -1,0 +1,116 @@
+{
+  // ---------------------------------------------------------------------------
+  // oh-my-patent - MCP server definitions (portable template)
+  //
+  // This file is the single source of truth for the MCP servers that
+  // `oh-my-patent adapt generate` injects into every supported tool's config
+  // (.claude/settings.json, codex.json, and the OpenCode agent files).
+  //
+  // The repository ships only this template. The loader prefers a real
+  // `opencode.jsonc` in your workspace and falls back to this file when none
+  // exists, so a fresh clone produces a complete MCP block instead of an empty
+  // one. To configure your own deployment, copy this file to `opencode.jsonc`
+  // and replace every <MCP_SERVERS_DIR> placeholder with the directory holding
+  // your local MCP server checkouts.
+  //
+  // Only the "mcp" key is read. Keep this file free of machine-specific paths:
+  // the release check rejects drive letters anywhere in the tracked tree.
+  //
+  // Deliberately no "$schema" key: its URL would embed a "letter + colon +
+  // slash" sequence that the drive-letter check cannot tell apart from a real
+  // local path. Add it back locally if you want editor completion.
+  // ---------------------------------------------------------------------------
+
+  "mcp": {
+    "google_scholar": {
+      "type": "local",
+      "command": [
+        "python",
+        "<MCP_SERVERS_DIR>/Google-Scholar-MCP-Server/google_scholar_server.py"
+      ],
+      "enabled": true
+    },
+    "uspto_patent": {
+      "type": "local",
+      "command": [
+        "python",
+        "-m",
+        "uv",
+        "--directory",
+        "<MCP_SERVERS_DIR>/patent_mcp_server",
+        "run",
+        "patent-mcp-server"
+      ],
+      "environment": {
+        "USPTO_API_KEY": "",
+        "PATENTSVIEW_API_KEY": ""
+      },
+      "enabled": true
+    },
+    "mcp_scholarly": {
+      "type": "local",
+      "command": [
+        "python",
+        "-m",
+        "uv",
+        "--directory",
+        "<MCP_SERVERS_DIR>/mcp-scholarly",
+        "run",
+        "mcp-scholarly"
+      ],
+      "enabled": true
+    },
+    "semantic_scholar": {
+      "type": "local",
+      "command": [
+        "python",
+        "-m",
+        "uv",
+        "--directory",
+        "<MCP_SERVERS_DIR>/semantic-scholar-fastmcp-mcp-server",
+        "run",
+        "python",
+        "run.py"
+      ],
+      "environment": {
+        "SEMANTIC_SCHOLAR_API_KEY": "",
+        "SEMANTIC_SCHOLAR_ENABLE_HTTP_BRIDGE": "0"
+      },
+      "enabled": true
+    },
+    "mcp_server_office": {
+      "type": "local",
+      "command": [
+        "<MCP_SERVERS_DIR>/mcp-server-office/.venv/Scripts/mcp-server-office.exe"
+      ],
+      "enabled": true
+    },
+    "sequential_thinking": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "enabled": true
+    },
+    "context7": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "enabled": true
+    },
+    "eslint": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@eslint/mcp"
+      ],
+      "enabled": true
+    }
+  }
+}

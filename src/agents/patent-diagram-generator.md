@@ -1,8 +1,10 @@
----
-name: patent-diagram-generator
-description: 读取交底书内容，生成 Mermaid/PlantUML 专利附图规格并渲染输出
-permissions: write, edit, bash
----
+<!-- Agent: patent-diagram-generator | Role: subagent -->
+
+<!-- description: 读取交底书内容，生成 Mermaid/PlantUML 专利附图规格并渲染输出 -->
+
+<!-- Permissions: write, edit, bash -->
+
+<!-- Sub-agent — invoked via Agent tool with subagent_type="patent-diagram-generator" -->
 
 # Patent Diagram Generator — 专利附图生成代理
 

@@ -1,3 +1,5 @@
+import { isValidJurisdiction } from '../skills/jurisdiction.js';
+
 export enum IntentType {
   NEW_PROJECT = 'NEW_PROJECT',
   SEARCH = 'SEARCH',
@@ -95,12 +97,20 @@ function extractScope(input: string): string | undefined {
 }
 
 function extractJurisdiction(input: string): string | undefined {
-  if (/(国内|中国|CN)/i.test(input)) return 'CN';
-  if (/(美国|US)/i.test(input)) return 'US';
-  if (/(欧洲|EP)/i.test(input)) return 'EP';
-  if (/(日本|JP)/i.test(input)) return 'JP';
-  if (/(PCT|国际)/i.test(input)) return 'PCT';
-  return undefined;
+  // REQ-017 / DEC-3：识别已知法域关键词，但只返回受支持的取值
+  // （`JurisdictionCode` 成员，判定来自 `isValidJurisdiction`）。
+  // 'EP' / 'JP' 会被识别但当前不受支持 —— 若原样返回，就会产生
+  // "路由返回 A、validateState/getJurisdictionRules 拒绝 A" 的断裂；
+  // 现在统一丢弃，由技能文档向用户明确提示"暂不支持"。
+  // 若日后枚举新增取值，此处无需改动即可自动跟随。
+  const recognized = [
+    /(国内|中国|CN)/i.test(input) ? 'CN' : null,
+    /(美国|US)/i.test(input) ? 'US' : null,
+    /(欧洲|EP)/i.test(input) ? 'EP' : null,
+    /(日本|JP)/i.test(input) ? 'JP' : null,
+    /(PCT|国际)/i.test(input) ? 'PCT' : null
+  ].filter((code): code is string => code !== null);
+  return recognized.find(code => isValidJurisdiction(code));
 }
 
 export function classifyIntent(input: string): IntentResult {

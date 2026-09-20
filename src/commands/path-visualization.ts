@@ -39,7 +39,8 @@ const ACTION_MAP: Record<string, string> = ACTION_LABELS;
 // 辅助函数
 // ============================================================================
 
-const formatDateLocal = formatDate;
+// formatDateLocal was an alias kept from when a UTC-safe variant was planned (REQ-018):
+// formatDate itself is now local-timezone, so call sites use it directly.
 const formatScoreLocal = formatScore;
 
 /**
@@ -104,7 +105,7 @@ export async function renderPathOverview(projectPath: string): Promise<string> {
     const node = await getNodeDetail(projectPath, `round-${evolution.round}`);
     if (!node) continue;
 
-    lines.push(`### Round ${evolution.round} (${formatDateLocal(node.timestamp)})`);
+    lines.push(`### Round ${evolution.round} (${formatDate(node.timestamp)})`);
     lines.push('');
 
     // 活跃的创新点
@@ -187,7 +188,7 @@ export async function renderNodeDetail(
   lines.push(`# Node Detail: ${nodeId}`);
   lines.push('');
   lines.push(`**Round**: ${detail.round}`);
-  lines.push(`**Timestamp**: ${formatDateLocal(detail.timestamp)}`);
+  lines.push(`**Timestamp**: ${formatDate(detail.timestamp)}`);
   if (detail.predecessorId) {
     lines.push(`**Predecessor**: ${detail.predecessorId}`);
   }
@@ -360,7 +361,7 @@ export async function renderBranchOverview(
   lines.push(`**Parent Path**: ${detail.parentPathId}`);
   lines.push(`**Branch Point**: ${detail.branchPointNodeId}`);
   lines.push(`**Reason**: ${detail.branchReason}`);
-  lines.push(`**Created At**: ${formatDateLocal(detail.createdAt)}`);
+  lines.push(`**Created At**: ${formatDate(detail.createdAt)}`);
   lines.push(`**Status**: ${getStatusLabel(detail.status)}`);
   lines.push('');
 

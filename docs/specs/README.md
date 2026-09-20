@@ -2,6 +2,12 @@
 
 欢迎查阅 oh-my-patent 的规格文档！本目录包含产品需求、技术设计和 API 规格。
 
+> ⚠️ **历史快照声明（REQ-033）**：本目录全部内容对应 **v0.1.0（2026-06-17 冻结）**，
+> 文中的「已实现 / 已发布」等状态仅反映当时快照，**后续版本（v0.2.x / v0.3.x）的
+> 功能变更未回填至此**——例如 OpenCode 适配器、`patent-init-sentinel`、
+> `DIAGRAM_DRAFT`/`DIAGRAM_FINAL` 阶段、智慧芽 MCP 等均未在本目录中描述。
+> **当前实现的权威来源是 `src/` 与 `plugin.jsonc`**；本目录不参与构建，仅作历史参考。
+
 ---
 
 ## 📚 文档列表
@@ -212,7 +218,7 @@ API-DESIGN.md (接口层)
 A: 遵循 Semantic Versioning（语义化版本）。Major 版本表示破坏性更改，Minor 版本表示新增功能。
 
 ### Q: 文档与代码如何保持同步？
-A: 每次 PR 合并前，检查是否需要更新相关规格文档。CI 流程中应包含文档检查。
+A: 每次 PR 合并前，人工检查是否需要更新相关规格文档。（本快照冻结于 v0.1.0，见顶部历史声明；当前仓库的 `ci.yml` 在 PR 与 push 上跑 `lint` + `test`，Release 触发 `npm-publish.yml` —— **两者都不含**文档检查。）
 
 ### Q: 如何贡献规格文档？
 A: 参考 [../../CONTRIBUTING.md](../../CONTRIBUTING.md)，遵循文档规范，提交 PR 前确保格式一致。

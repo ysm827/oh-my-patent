@@ -45,7 +45,10 @@ The skill is typically invoked by the `patent-landscape-analyst` agent during th
 
 - **jurisdiction**: Filter by patent jurisdiction
   - Default: All jurisdictions
-  - Options: `CN`, `US`, `EP`, `JP`, `PCT`
+  - Options: `CN`, `US`, `PCT`
+  - `EP` / `JP` are **not supported** (REQ-017): if the user asks for them, say so
+    explicitly, then proceed without a jurisdiction filter (or suggest `PCT` for
+    international filings). Never pass an unsupported code downstream.
 
 ## Output Format
 

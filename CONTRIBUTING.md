@@ -8,11 +8,15 @@ Thank you for considering contributing to oh-my-patent! This document provides g
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
 - [Project Structure](#project-structure)
+- [Spec-First Changes](#spec-first-changes)
 - [Making Changes](#making-changes)
 - [Testing](#testing)
 - [Commit Guidelines](#commit-guidelines)
 - [Pull Request Process](#pull-request-process)
 - [Release Process](#release-process)
+- [Generated Plugin Artifacts](#generated-plugin-artifacts)
+- [Questions?](#questions)
+- [License](#license)
 
 ---
 
@@ -38,21 +42,30 @@ Thank you for considering contributing to oh-my-patent! This document provides g
 
 ### Prerequisites
 
-- Node.js 18+ and npm 9+
+- Node.js 22+ and npm 9+ (`package.json` declares `engines.node >= 22`, and CI runs on Node 22. The floor is 22 rather than 18 because the runtime dependency `ink@^7`, used by the `tui` domain, itself requires Node >= 22)
 - Git
-- TypeScript knowledge
+- TypeScript knowledge (the project is ESM with `strict` mode enabled)
 - Familiarity with patent drafting workflows (helpful but not required)
 
 ### First Contribution
 
-Good first issues are tagged with `good-first-issue`. These are great for getting familiar with the codebase.
+Good first issues are tagged with `good first issue` (GitHub's default label, spelled with spaces). These are great for getting familiar with the codebase.
 
 Areas where contributions are especially welcome:
-- Additional jurisdiction rules (JP, EP, KR)
-- Agent prompt improvements
-- Test coverage expansion
+- Agent prompt improvements (`src/agents/*.md`)
+- Skill improvements (`src/skills/*/SKILL.md`)
+- Test expansion under `tests/` — no coverage tooling is configured yet, so there is real headroom
 - Documentation improvements
-- Bug fixes
+- Bug fixes, especially in the adapters and the generated output under `plugins/`
+
+> **Note on jurisdictions.** The supported set is currently `CN`, `US`, and `PCT` only. Adding JP/EP/KR is not a drop-in task: it requires extending `VALID_JURISDICTIONS` in `src/core/state.ts` and the `config.jurisdiction.enum` list in `plugin.jsonc`. Note that `src/core/router.ts` already recognises `欧洲`/`EP` and `日本`/`JP` and returns those codes, which `validateState()` then rejects — that mismatch is a known bug, and correcting it is a valuable contribution in itself.
+
+### Related Documents
+
+- [AGENTS.md](AGENTS.md) — repository guidelines for AI coding agents (structure, style, and PR expectations)
+- [CONSTITUTION.md](CONSTITUTION.md) — governing principles for repository boundaries, evidence, security, and naming
+- [specs/](specs/) — specifications live here (see [Spec-First Changes](#spec-first-changes))
+- [docs/README.md](docs/README.md) — documentation index, including the historical [docs/specs/](docs/specs/) snapshot
 
 ---
 
@@ -90,6 +103,10 @@ npm test
 node dist/cli.js --help
 ```
 
+### 6. Familiarise Yourself With the Generated Artifacts
+
+`plugins/` holds generated output for Claude Code, Codex, and OpenCode. It is not versioned — `.gitignore` lists it, so the tree exists only in your working copy. Read [Generated Plugin Artifacts](#generated-plugin-artifacts) before regenerating it.
+
 ---
 
 ## Project Structure
@@ -97,27 +114,77 @@ node dist/cli.js --help
 ```
 oh-my-patent/
 ├── src/
-│   ├── agents/           # Agent prompt definitions (.md + .ts)
-│   ├── commands/         # CLI command implementations
-│   ├── core/             # Core engine (path, state, workflow, diagram)
-│   ├── adapters/         # Tool adapters (Claude Code, Codex)
-│   ├── skills/           # Reusable skills (jurisdiction, quality-gate)
-│   └── tui/              # Terminal UI (Ink + React)
+│   ├── agents/           # Agent role definitions: 14 prompts (.md) + archimedes.ts (routing)
+│   ├── commands/         # 9 slash-command prompts (.md) + 6 handler modules (.ts)
+│   ├── core/             # Engine: workflow, state, validation, path graph/persistence,
+│   │                     #   diagram rendering/insertion, threshold config, schemas
+│   ├── adapters/         # Portable-def loader + Claude Code / Codex / OpenCode generators
+│   ├── skills/           # 6 skills, each a <id>/SKILL.md plus optional <id>.ts
+│   └── tui/              # Terminal UI (Ink + React): app.tsx, cli.ts
 ├── tests/
-│   ├── unit/             # Unit tests
+│   ├── unit/             # Unit tests (including unit/core/ for schema parsers)
 │   ├── integration/      # Integration tests
 │   └── e2e/              # End-to-end tests
-├── plugin.jsonc          # Plugin metadata (agents/commands/skills)
-└── README.md
+├── specs/                # CANONICAL specifications — one directory per feature (Spec Kit convention)
+│   └── 001-review-remediation/   # spec.md (what/why), plan.md (how), tasks.md (verdict ledger)
+├── docs/                 # Documentation: README, workflow diagrams, historical specs
+│   └── specs/            # ⚠️ v0.1.0 historical snapshot (frozen 2026-06-17) — do not extend
+├── plugins/              # GENERATED artifacts (claude-code/, codex/, opencode/) — gitignored
+├── scripts/hooks/        # Git hook installers
+├── .github/workflows/    # CI
+├── plugin.jsonc          # Portable definition (agents / skills / commands / config) — source of truth
+├── CONSTITUTION.md       # Governing principles for this repository
+├── AGENTS.md             # Guidelines for AI coding agents
+└── tsconfig.json
 ```
 
 ### Key Modules
 
-- **core/brainstorm-path.ts**: Decision path tracking data structures
-- **core/state-manager.ts**: Workflow state machine
-- **core/diagram-renderer.ts**: Mermaid/PlantUML rendering
-- **adapters/**: Cross-tool configuration generation
-- **agents/archimedes.md**: Main orchestrator agent
+- **core/brainstorm-path.ts**: Decision-path (DAG) data structures and validation guards
+- **core/workflow.ts**: Workflow state machine — `WorkflowStage` and the `VALID_TRANSITIONS` table
+- **core/state-manager.ts**: Persistence of `.patent/state.json` (`saveState` / `loadState`) — *not* the state machine itself
+- **core/threshold-config.ts**: Score thresholds and the `ITERATE` / `PASS_TO_DRAFT` / `FORCE_PASS` decisions
+- **core/diagram-renderer.ts**: Mermaid rendering via local `mmdc`, PlantUML via a remote server
+- **core/init-checker.ts**: Environment readiness checks (MCP servers, external tools, runtime)
+- **adapters/loader.ts**: Loads `plugin.jsonc` and `.opencode/` into the portable definition
+- **adapters/**: Cross-tool configuration generation for Claude Code, Codex, and OpenCode
+- **agents/archimedes.md**: Main orchestrator agent prompt
+
+---
+
+## Spec-First Changes
+
+Substantive changes to this repository start from a written specification, not from code. The
+specification is what makes a change reviewable: it states the problem, the acceptance criteria,
+and — in the same repository — the evidence that the criteria were met.
+
+Specifications live in the **repository-root `specs/` directory**, one directory per feature,
+named `{NNN}-{slug}` (Spec Kit convention, so the directories sort chronologically):
+
+```
+specs/
+└── 001-review-remediation/     # example: the repository remediation effort
+    ├── spec.md                 # WHAT and WHY — requirements, acceptance criteria, decisions
+    ├── plan.md                 # HOW — per-cycle technical approach, file-level changes
+    └── tasks.md                # evidence ledger — per-requirement verdicts, cycle records
+```
+
+The flow is `spec.md` → `plan.md` → `tasks.md` → implementation. Each step is reviewed before
+the next one starts, and `tasks.md` is a ledger rather than a to-do list: every requirement
+carries an explicit verdict backed by pasted command output, and every remediation cycle is
+recorded with its own commit so it can be reverted on its own.
+
+- **`specs/{NNN}-{slug}/` is the canonical location.** New specifications go here and nowhere
+  else. This is a governance rule, not a preference — see [CONSTITUTION.md](CONSTITUTION.md)
+  (Operational Constraints).
+- **`docs/specs/` is a historical snapshot.** It holds the v0.1.0 product specs, frozen on
+  2026-06-17, and is marked as such. Do not add new specifications there; read it as background
+  only. The current implementation is `src/` and `plugin.jsonc`, not that directory.
+- **Unverifiable numbers get deleted, not estimated.** If a figure cannot be reproduced from a
+  stated command, remove it ([CONSTITUTION.md](CONSTITUTION.md), Principle II).
+- **Say what is true today.** No document may claim a gate that does not exist: anything
+  asserted as CI-enforced must first exist in [`.github/workflows/`](.github/workflows/)
+  (Constitution, Operational Constraints).
 
 ---
 
@@ -130,10 +197,11 @@ oh-my-patent/
 - `docs/` - Documentation only
 - `test/` - Test improvements
 - `refactor/` - Code refactoring
+- `chore/` - Maintenance, dependency bumps, and release preparation (e.g. `chore/release-0.3.0`)
 
 Examples:
-- `feature/add-jp-jurisdiction`
-- `fix/windows-atomic-rename`
+- `feature/add-kr-jurisdiction`
+- `fix/codex-command-skill-uninstall`
 - `docs/improve-skill-examples`
 
 ### Code Style
@@ -156,20 +224,30 @@ export function create(n, c) {
 ```
 
 **Conventions**:
+- Two-space indentation
 - Use camelCase for variables/functions
-- Use PascalCase for types/interfaces
+- Use PascalCase for types/interfaces/classes
+- Use `UPPER_SNAKE_CASE` for module-level constants
 - Prefer `const` over `let`
 - Always specify function return types
+- Use `.js` extensions in ESM imports (the project compiles to ESM)
 - Add JSDoc comments for public APIs
+
+> **Tooling note.** There is no ESLint, Prettier, or other formatter/linter configured. `npm run lint` runs `npx tsc --noEmit` — a **type check**, not a lint. Match the formatting of the surrounding file; that is the only style gate. The `style` commit type is therefore rarely applicable.
 
 ### Adding a New Agent
 
-1. Create `src/agents/your-agent.md`:
+1. Create `src/agents/your-agent.md`. The loader accepts two frontmatter styles —
+   `src/adapters/loader.ts` tries YAML first, then falls back to HTML comments — and
+   **13 of the 14 existing agents use the HTML-comment style**, so prefer it:
+
 ```markdown
----
-name: your-agent
-description: Brief description
----
+<!-- Agent: your-agent | Role: subagent -->
+
+<!-- Permissions: write, edit -->
+
+<!-- Sub-agent — invoked via Agent tool with subagent_type="your-agent" -->
+
 
 You are [Agent Name], responsible for...
 
@@ -185,7 +263,12 @@ You are [Agent Name], responsible for...
 [Show usage example]
 ```
 
+   `Role` is `primary` or `subagent`; `Permissions` is a comma-separated list drawn from
+   `write`, `edit`, `bash`, `mcp`, `task`, `skill`. (For reference, YAML frontmatter is
+   also parsed — see `src/agents/patent-diagram-generator.md` for the one existing example.)
+
 2. Register in `plugin.jsonc`:
+
 ```json
 {
   "agents": [
@@ -199,17 +282,35 @@ You are [Agent Name], responsible for...
 }
 ```
 
-3. Add tests in `tests/unit/your-agent.test.ts`
+3. Add or extend a test. Agent *prompts* have no dedicated unit test today, so if your
+   agent adds runtime behaviour in `src/agents/*.ts`, test it under `tests/unit/`. Verify
+   registration end-to-end with `npx vitest run tests/e2e/plugin-load.test.ts`.
+
+4. Regenerate the output locally (`npm run build && node dist/cli.js adapt generate`) and
+   review the diff — see [Generated Plugin Artifacts](#generated-plugin-artifacts).
 
 ### Adding a New Skill
 
-1. Create `src/skills/your-skill/SKILL.md` with:
-   - Overview
-   - Usage examples
-   - Input/output format
-   - Integration notes
+1. Create `src/skills/your-skill/SKILL.md`. The **YAML frontmatter is mandatory and
+   CI-enforced** — `tests/unit/skill-frontmatter.test.ts` asserts that every registered
+   skill's prompt starts with `---\nname: <id>\ndescription: ...\n---\n`:
 
-2. Implement in `src/skills/your-skill.ts`:
+```markdown
+---
+name: your-skill
+description: Brief description
+---
+
+## Overview
+## Usage Examples
+## Input / Output Format
+## Integration Notes
+```
+
+2. Optionally implement runtime helpers in `src/skills/your-skill.ts`. Only 2 of the 6
+   existing skills have a companion module (`jurisdiction.ts`, `quality-gate.ts`); the
+   rest are prompt-only:
+
 ```typescript
 export interface YourSkillInput {
   // Define inputs
@@ -224,9 +325,9 @@ export function yourSkill(input: YourSkillInput): YourSkillOutput {
 }
 ```
 
-3. Register in `plugin.jsonc`
+3. Register in `plugin.jsonc` (`{ "id": "your-skill", "name": "Your Skill", "file": "src/skills/your-skill/SKILL.md" }`)
 
-4. Add tests
+4. Run `npm test` — the frontmatter test will fail if step 1 is malformed
 
 ---
 
@@ -288,6 +389,11 @@ test('test merge', () => {
 
 ### Test Coverage Goals
 
+These are **review targets, not CI gates**. No coverage tooling is configured
+(`@vitest/coverage-*` is not a dependency, and there is no `vitest.config` or
+`test:coverage` script), so coverage cannot currently be measured or enforced —
+treat the numbers as guidance for where to focus new tests.
+
 - Core modules: >80%
 - Adapters: >70%
 - CLI commands: >60%
@@ -322,22 +428,32 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 ### Examples
 
 ```bash
-feat(jurisdiction): add Japan (JP) jurisdiction rules
+feat(jurisdiction): add Korea (KR) jurisdiction rules
 
-- Add JP examination process and timeline
-- Add Japanese claim format templates
-- Update jurisdiction.test.ts with JP cases
+- Add KR to VALID_JURISDICTIONS in src/core/state.ts
+- Add KR to config.jurisdiction.enum in plugin.jsonc
+- Add KR examination process and claim format templates to the jurisdiction skill
+- Update jurisdiction.test.ts with KR cases
 
 Closes #42
 
 ---
 
-fix(state-manager): prevent race condition on Windows
+fix(adapters): normalize cross-platform skill generation
 
-Windows file system requires delay between unlinkSync and renameSync.
-Add 10ms delay when platform is win32.
+Generated skill paths used POSIX separators, which produced invalid paths on
+Windows. Emit them with `path.join` so both platforms resolve identically.
 
-Fixes #38
+Fixes #1
+
+---
+
+fix(state-manager): close the save window in saveState
+
+`unlinkSync` followed by `renameSync` leaves a brief interval on Windows where
+`state.json` does not exist. Replace the pair with an atomic move.
+
+Closes #12
 
 ---
 
@@ -362,10 +478,14 @@ Add 3 practical examples with real query patterns
 
 1. ✅ All tests pass (`npm test`)
 2. ✅ TypeScript compiles (`npm run build`)
-3. ✅ Linter passes (`npm run lint`)
-4. ✅ Code formatted consistently
+3. ✅ Type check passes (`npm run lint` — this runs `tsc --noEmit`; there is no separate linter)
+4. ✅ Code formatted consistently with surrounding files
 5. ✅ Documentation updated if needed
 6. ✅ Added tests for new features
+7. ✅ Changes to workflow logic or orchestration definitions reviewed against [CONSTITUTION.md](CONSTITUTION.md)
+8. ✅ If `plugin.jsonc`, `src/agents/`, `src/commands/`, or `src/adapters/` changed, the output was regenerated locally and the diff reviewed — see [Generated Plugin Artifacts](#generated-plugin-artifacts)
+
+> Note: `.github/` currently contains only the workflow files (`ci.yml`, `npm-publish.yml`), so GitHub does **not** auto-populate a PR template. Copy the template below into your PR description.
 
 ### PR Template
 
@@ -393,12 +513,19 @@ Brief description of changes
 
 ### Review Process
 
-1. Automated checks run (tests, linting)
-2. Maintainer reviews code
-3. Address feedback with new commits
-4. Maintainer approves and merges
+1. Maintainer reviews code
+2. Address feedback with new commits
+3. Maintainer approves and merges
 
-**Review turnaround**: We aim to review within 48 hours
+> **Automated checks run on every pull request.** `.github/workflows/ci.yml` is
+> triggered by `pull_request` and by pushes to `master`; it runs `npm ci`,
+> `npm run lint`, and `npm test` (which builds via its `pretest` hook) on Node 22.
+> You can see the run under the PR's **Checks** tab.
+>
+> CI is a safety net, not a substitute: `npm test`, `npm run build`, and
+> `npm run lint` locally are still the fastest feedback loop.
+
+**Review turnaround**: best effort, typically within 48 hours
 
 ---
 
@@ -412,21 +539,99 @@ Releases follow [Semantic Versioning](https://semver.org/):
 
 ### Release Checklist (Maintainers)
 
-1. Update version in `package.json`
-2. Update CHANGELOG.md
-3. Run full test suite
-4. Create git tag: `git tag -a v1.0.0 -m "Release 1.0.0"`
-5. Push with tags: `git push origin main --tags`
-6. Publish to npm: `npm publish`
-7. Create GitHub Release with notes
+Publishing is **automated by CI** — do not run `npm publish` by hand.
+
+1. Update `version` in `package.json`
+2. Update `CHANGELOG.md`
+3. Run the full suite locally: `npm test`, `npm run build`, `npm run lint`
+4. Commit on the default branch (`master` — this repository has no `main` branch)
+5. Tag the release: `git tag -a v0.4.0 -m "Release 0.4.0"` and push it: `git push origin master --tags`
+6. Create a GitHub Release from the tag
+
+Step 6 is the trigger: `.github/workflows/npm-publish.yml` runs on `release: [created]`. The `build` job runs `npm ci` → `npm run lint` → `npm test` (which builds via `pretest`) and uploads `dist/` as an artifact; the `publish-npm` job then downloads that artifact and runs `npm publish --access public --ignore-scripts` using `secrets.NPM_TOKEN` and the `PRE` environment. `--ignore-scripts` is deliberate: the package contents were already verified by the gating `build` job, so letting `prepublishOnly` re-run lint/build/test would be duplicated work. `package.json` sets `publishConfig.access: public`, so the `--access public` flag is redundant but harmless.
+
+> **OIDC / provenance is not enabled yet.** Publishing still uses a long-lived
+> `secrets.NPM_TOKEN`. Migrating to [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers)
+> requires configuring a trusted publisher on npmjs.com — an out-of-repo action. Adding
+> `id-token: write` + `--provenance` before that configuration exists would break the
+> release, so it is deliberately deferred.
+
+> **Supply chain.** All Actions are pinned to commit SHAs (a moving tag can be
+> repointed), and each workflow declares an explicit least-privilege `permissions` block.
+> See the README's *Dependency audit* section for the current `npm audit` numbers.
+
+To re-publish without creating a Release, use the workflow's manual `workflow_dispatch` trigger.
+
+> **Version drift check.** Generated manifests under `plugins/` used to carry their own version string, and they did drift — the Codex plugin manifest shipped `0.1.0` while `package.json` was at `0.3.0`. They are no longer committed, so it cannot drift in the repository any more; before tagging, just confirm `plugin.jsonc` and `package.json` agree.
+
+---
+
+## Generated Plugin Artifacts
+
+`plugins/` holds **generated output**, not hand-written source. It contains the
+Claude Code (`.claude/`), Codex (`.codex/`, `plugins/oh-my-patent/`), and OpenCode
+(`.opencode/`) configuration produced by the CLI from `plugin.jsonc`, the MCP template
+`opencode.jsonc.example`, and the prompt files in `src/agents/`, `src/commands/`, and
+`src/skills/`.
+
+**It is not versioned.** `.gitignore` lists `plugins/`, so this tree exists only in
+your working copy. That is deliberate: committing output whose inputs are not
+committed makes the repository unreproducible, and this repository lived through the
+consequences — the committed tree had been generated once and never regenerated, so
+it still carried five agents that `plugin.jsonc` no longer declared. See
+[`specs/001-review-remediation/`](specs/001-review-remediation/) (DEC-1) for the record.
+
+To produce it:
+
+```bash
+npm run build
+node dist/cli.js adapt generate          # writes plugins/<tool>/ per adapter
+```
+
+### Inputs
+
+Generation reads three tracked sources, so a clean clone produces a complete tree:
+
+| Input | Provides |
+|---|---|
+| `plugin.jsonc` | agents, skills, commands, config schema |
+| `src/agents/`, `src/commands/`, `src/skills/` | prompt text |
+| `opencode.jsonc.example` | the 8 MCP server definitions (a real `opencode.jsonc` in your workspace wins over the template) |
+
+`<workspace>/.opencode/agent/*.md` is an optional override. When present it takes
+precedence over `plugin.jsonc` for the agents it defines; when absent — the normal
+case on a clean clone — the loader falls back silently to the tracked sources. That
+directory is intentionally not committed either.
+
+### Stale output
+
+`generate()` only writes, so output produced by an earlier definition lingers until
+it is pruned:
+
+```bash
+node dist/cli.js adapt install --workspace-dir <dir> --prune
+```
+
+A file is deleted only when it is both absent from the current output list *and*
+carries an oh-my-patent generated marker. Files you wrote yourself are reported and
+left alone.
+
+### Known limitation: `adapt generate --output`
+
+`adapt generate --output <dir>` makes all three adapters write into `<dir>` instead of
+into separate `plugins/<tool>/` subdirectories, so whichever adapter runs last wins.
+Omit `--output` to get the per-tool layout.
+
+`plugins/` is also excluded from the published npm package (`package.json` `files`
+uses an allow-list that omits it), so none of this affects consumers.
 
 ---
 
 ## Questions?
 
-- **Issues**: Open an issue on GitHub
-- **Discussions**: Use GitHub Discussions for questions
-- **Email**: (Add maintainer email if public)
+- **Issues**: Open an issue on GitHub — this is the supported channel
+- **Discussions**: GitHub Discussions is **not enabled** on this repository
+- **Wiki**: Enabled on GitHub, but unused; prefer `docs/` in the repository
 
 ---
 

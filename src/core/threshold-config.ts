@@ -7,7 +7,7 @@
  * - 单维度红线检查
  */
 
-import { InnovationScore, DecisionAction } from './brainstorm-path.js';
+import { InnovationScore, DecisionAction, ScoreWeights } from './brainstorm-path.js';
 
 // ============================================================================
 // 阈值配置接口
@@ -36,6 +36,12 @@ export interface ThresholdConfig {
   passToDraft: number; // 进入下一阶段的最低综合评分 (默认 8.5)
   forceIteration: ForceIterationConfig;
   redLines: RedLinesConfig;
+  /**
+   * 评分权重 (REQ-024)。可选：未配置时沿用与 `calculateWeightedScore()`
+   * 相同的默认值。此前 `generateImprovementSuggestions()` 在内部硬编码
+   * 0.3/0.3/0.2/0.2，自定义权重对改进建议不生效。
+   */
+  weights?: ScoreWeights;
 }
 
 // ============================================================================
@@ -54,6 +60,12 @@ export const DEFAULT_THRESHOLD_CONFIG: ThresholdConfig = {
   redLines: {
     novelty: 6.0,
     creativity: 6.0
+  },
+  weights: {
+    novelty: 0.3,
+    creativity: 0.3,
+    practicality: 0.2,
+    businessValue: 0.2
   }
 };
 
@@ -309,14 +321,16 @@ export function generateImprovementSuggestions(
     const gap = config.passToDraft - score.weightedScore;
     suggestions.push(`综合分差距 ${gap.toFixed(1)}: 需要全面提升各维度评分`);
 
-    // 找出最低分维度
+    // 找出最低分维度（REQ-024：权重来自 config.weights，不再是硬编码值；
+    // 维度按"加权贡献 = 得分 × 权重"升序挑选 —— 权重高的维度短板优先提示）
+    const weights = config.weights ?? DEFAULT_THRESHOLD_CONFIG.weights!;
     const dimensions = [
-      { name: '新颖性', value: score.novelty, weight: 0.3 },
-      { name: '创造性', value: score.creativity, weight: 0.3 },
-      { name: '实用性', value: score.practicality, weight: 0.2 },
-      { name: '商业价值', value: score.businessValue, weight: 0.2 }
+      { name: '新颖性', value: score.novelty, weight: weights.novelty },
+      { name: '创造性', value: score.creativity, weight: weights.creativity },
+      { name: '实用性', value: score.practicality, weight: weights.practicality },
+      { name: '商业价值', value: score.businessValue, weight: weights.businessValue }
     ];
-    const lowest = dimensions.reduce((min, d) => d.value < min.value ? d : min);
+    const lowest = dimensions.reduce((min, d) => (d.value * d.weight) < (min.value * min.weight) ? d : min);
 
     if (lowest.value < 8) {
       suggestions.push(`优先提升${lowest.name}: 当前 ${lowest.value}/10，权重 ${lowest.weight * 100}%`);

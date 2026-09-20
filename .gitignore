@@ -28,6 +28,11 @@ progress.md
 .claude/
 .workbuddy/
 
+# Generated adapter output. It is reproducible from tracked inputs, so it is no
+# longer versioned (DEC-1 in specs/001-review-remediation). Regenerate with:
+#   npm run build && node dist/cli.js adapt generate
+plugins/
+
 # Audit reports directory (keep locally for reference, don't commit)
 .audit-reports/
 

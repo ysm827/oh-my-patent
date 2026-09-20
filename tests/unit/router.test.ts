@@ -87,4 +87,30 @@ describe('Intent Router', () => {
     expect(result.extracted?.scope).toBe('5years');
     expect(result.extracted?.jurisdiction).toBe('CN');
   });
+
+  test('REQ-017: EP keyword is recognized but not emitted (unsupported)', () => {
+    const result = classifyIntent('检索欧洲同态加密专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.query).toBeTruthy();
+    expect(result.extracted?.jurisdiction).toBeUndefined();
+  });
+
+  test('REQ-017: JP keyword is recognized but not emitted (unsupported)', () => {
+    const result = classifyIntent('检索日本量子纠错专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.query).toBeTruthy();
+    expect(result.extracted?.jurisdiction).toBeUndefined();
+  });
+
+  test('REQ-017: EP falls through to supported PCT when both keywords present', () => {
+    const result = classifyIntent('检索欧洲PCT专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.jurisdiction).toBe('PCT');
+  });
+
+  test('REQ-017: extracts jurisdiction PCT', () => {
+    const result = classifyIntent('检索国际量子密钥分发专利');
+    expect(result.type).toBe(IntentType.SEARCH);
+    expect(result.extracted?.jurisdiction).toBe('PCT');
+  });
 });

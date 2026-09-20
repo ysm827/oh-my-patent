@@ -4,6 +4,25 @@ export enum JurisdictionCode {
   PCT = 'PCT',
 }
 
+/**
+ * 全仓库法域取值的唯一定义点（REQ-017 / DEC-3）。
+ *
+ * `state.ts` 的类型派生与运行时校验、`plugin.jsonc` 的
+ * `config.jurisdiction.enum`、以及各处文档都必须与该枚举保持一致。
+ * EP / JP 暂不收录 —— 只有当对应的管辖规则（`JURISDICTION_RULES` 等）
+ * 真正存在时才允许加入枚举，避免出现"路由返回 A、校验拒绝 A"。
+ */
+export const SUPPORTED_JURISDICTIONS: readonly JurisdictionCode[] =
+  Object.values(JurisdictionCode);
+
+/**
+ * 运行时守卫（REQ-017）：判断字符串是否为受支持的法域。
+ * 供 `state.ts` 校验与 `router.ts` 的意图提取派生使用。
+ */
+export function isValidJurisdiction(code: string): code is JurisdictionCode {
+  return (SUPPORTED_JURISDICTIONS as readonly string[]).includes(code);
+}
+
 export interface JurisdictionRules {
   code: JurisdictionCode;
   country: string;

@@ -1,6 +1,6 @@
 export { PatentState, CreateStateInput, createInitialState, validateState } from './core/state.js';
 export { IntentType, IntentResult, classifyIntent } from './core/router.js';
-export { WorkflowStage, WorkflowMachine } from './core/workflow.js';
+export { WorkflowStage, WorkflowMachine, WORKFLOW_STAGE_ORDER } from './core/workflow.js';
 export { ConsistencyResult, validateConsistency } from './core/validator.js';
 export { StateManager } from './core/state-manager.js';
 export { ArchimedesOrchestrator } from './agents/archimedes.js';

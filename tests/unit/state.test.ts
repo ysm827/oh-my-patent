@@ -26,7 +26,29 @@ describe('State Management', () => {
     };
     const result = validateState(invalidState);
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Invalid jurisdiction: INVALID');
+    expect(result.errors).toContain('Invalid jurisdiction: INVALID (supported: CN, US, PCT)');
+  });
+
+  test('validateState rejects EP and names the supported list (REQ-017)', () => {
+    const epState = {
+      project: { jurisdiction: 'EP' },
+      current_stage: 'INIT',
+      stages: {}
+    };
+    const result = validateState(epState);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('Invalid jurisdiction: EP (supported: CN, US, PCT)');
+  });
+
+  test('validateState rejects JP (REQ-017)', () => {
+    const jpState = {
+      project: { jurisdiction: 'JP' },
+      current_stage: 'INIT',
+      stages: {}
+    };
+    const result = validateState(jpState);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('Invalid jurisdiction: JP (supported: CN, US, PCT)');
   });
 
   test('validateState accepts valid CN jurisdiction', () => {
@@ -39,5 +61,62 @@ describe('State Management', () => {
     const result = validateState(validState);
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
+  });
+});
+
+describe('validateState key fields (REQ-022)', () => {
+  const baseState = () => {
+    const state = createInitialState({
+      topic: 'Test',
+      topicSlug: 'test',
+      jurisdiction: 'CN',
+      projectPath: 'test'
+    });
+    return state as unknown as Record<string, unknown>;
+  };
+
+  test('negative qa_rounds_completed is rejected', () => {
+    const state = baseState();
+    state.qa_rounds_completed = -1;
+    const result = validateState(state);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('qa_rounds_completed'))).toBe(true);
+  });
+
+  test('non-integer qa_rounds_completed is rejected', () => {
+    const state = baseState();
+    state.qa_rounds_completed = 1.5;
+    expect(validateState(state).valid).toBe(false);
+  });
+
+  test('non-numeric qa_rounds_completed is rejected', () => {
+    const state = baseState();
+    state.qa_rounds_completed = 'two';
+    expect(validateState(state).valid).toBe(false);
+  });
+
+  test('empty topic_slug is rejected', () => {
+    const state = baseState();
+    (state.project as Record<string, unknown>).topic_slug = '';
+    expect(validateState(state).valid).toBe(false);
+  });
+
+  test('non-string topic_slug is rejected', () => {
+    const state = baseState();
+    (state.project as Record<string, unknown>).topic_slug = 42;
+    expect(validateState(state).valid).toBe(false);
+  });
+
+  test('non-array innovation_candidates is rejected', () => {
+    const state = baseState();
+    state.innovation_candidates = 'none';
+    expect(validateState(state).valid).toBe(false);
+  });
+
+  test('a fully populated state still validates', () => {
+    const state = baseState();
+    state.qa_rounds_completed = 2;
+    state.innovation_candidates = [{ id: 'INN-001' }];
+    expect(validateState(state)).toEqual({ valid: true, errors: [] });
   });
 });

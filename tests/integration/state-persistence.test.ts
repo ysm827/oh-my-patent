@@ -1,10 +1,14 @@
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync, mkdtempSync } from 'fs';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import { StateManager } from '../../src/core/state-manager';
 import { createInitialState } from '../../src/core/state';
 
-const TEST_DIR = join(__dirname, '..', 'fixtures', 'test-projects');
+// REQ-044: 测试数据目录必须落在 os.tmpdir()。旧实现用
+// `tests/fixtures/test-projects`，会在**源码树内**建目录 —— 崩溃时残留，
+// 且会让仓库多出未被 .gitignore 覆盖的目录。
+const TEST_DIR = mkdtempSync(join(tmpdir(), 'omp-state-persistence-'));
 
 describe('State Persistence Integration', () => {
 	beforeEach(() => {

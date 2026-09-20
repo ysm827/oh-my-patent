@@ -40,10 +40,22 @@ export const ACTION_LABELS: Record<string, string> = {
 // ============================================================================
 
 /**
- * 格式化日期为 YYYY-MM-DD 格式
+ * 格式化日期为 YYYY-MM-DD（本地时区）
+ *
+ * REQ-018: the previous implementation went through `toISOString()`, which is
+ * always UTC. For a user east of UTC, any instant between local midnight and
+ * 08:00 rendered as the previous day. Format from the local Date fields
+ * instead. Invalid input still throws, mirroring `toISOString()`.
  */
 export function formatDate(isoString: string): string {
-  return new Date(isoString).toISOString().split('T')[0];
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) {
+    throw new RangeError(`Invalid time value: ${isoString}`);
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**

@@ -23,6 +23,17 @@ globalThis.fetch = mockFetch;
 // 测试数据
 // ============================================================================
 
+/** 签名正确、体积达标的 PNG 替身（REQ-042 的尺寸/签名校验要求）。 */
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const makeFakePng = (): Buffer =>
+  Buffer.concat([PNG_SIGNATURE, Buffer.alloc(2048, 0x20)]);
+
+/** 含 `<svg>` 根元素、体积达标的 SVG 替身。 */
+const makeFakeSvg = (): string =>
+  `<svg xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10"/>${' '.repeat(
+    256
+  )}</svg>`;
+
 const MAIN_MD = `# 专利交底书
 
 ## 技术领域
@@ -88,14 +99,22 @@ describe('Diagram Pipeline Integration', () => {
       cb(null, { stdout: '', stderr: '' });
     });
 
+    // REQ-042 起渲染器会校验 PlantUML 响应体（Content-Type / PNG 签名 /
+    // 尺寸下限），所以替身必须是**形状正确**的响应，而不是 `Buffer.from('png-data')`。
     mockFetch.mockImplementation(async (url: string) => {
-      if (url.includes('/png/')) {
-        return { ok: true, status: 200, arrayBuffer: async () => Buffer.from('png-data') };
-      }
-      if (url.includes('/svg/')) {
-        return { ok: true, status: 200, text: async () => '<svg>test</svg>' };
-      }
-      return { ok: false, status: 404, statusText: 'Not Found' };
+      const isPng = url.includes('/png/');
+      const headers = new Map<string, string>([
+        ['content-type', isPng ? 'image/png' : 'image/svg+xml'],
+        ['x-plantuml-diagram-description', '(2 participants)'],
+      ]);
+      return {
+        ok: true,
+        status: 200,
+        statusText: '',
+        headers: { get: (name: string) => headers.get(name.toLowerCase()) ?? null },
+        arrayBuffer: async () => makeFakePng(),
+        text: async () => makeFakeSvg(),
+      };
     });
   });
 

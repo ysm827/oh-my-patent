@@ -10,6 +10,13 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { atomicWriteFile } from './atomic-write.js';
+import {
+  BRAINSTORM_DIR,
+  PATH_FILE,
+  NODES_DIR,
+  SNAPSHOTS_DIR,
+} from './path-constants.js';
 import {
   BrainstormPath,
   BrainstormNode,
@@ -22,10 +29,7 @@ import {
 // 常量定义
 // ============================================================================
 
-const BRAINSTORM_DIR = '.brainstorm';
-const PATH_FILE = 'path.json';
-const NODES_DIR = 'nodes';
-const SNAPSHOTS_DIR = 'snapshots';
+// 目录/文件名常量集中于 `./path-constants.js`（REQ-040），此处不再重复声明。
 
 // ============================================================================
 // 公共 API
@@ -61,9 +65,9 @@ export async function savePath(
   // 确保目录存在
   await initBrainstormDirectory(projectPath);
 
-  // 写入 JSON 文件（格式化输出）
   const content = JSON.stringify(brainstormPath, null, 2);
-  await fs.writeFile(filePath, content, 'utf-8');
+  // 原子写入（REQ-016：临时文件 + rename，杜绝截断文件与 Windows unlink 窗口）
+  await atomicWriteFile(filePath, content, { mkdir: false });
 }
 
 /**
@@ -112,7 +116,8 @@ export async function saveNode(
 
   // 写入 JSON 文件（格式化输出）
   const content = JSON.stringify(node, null, 2);
-  await fs.writeFile(filePath, content, 'utf-8');
+  // 原子写入（REQ-016）
+  await atomicWriteFile(filePath, content, { mkdir: false });
 }
 
 /**
@@ -174,7 +179,8 @@ export async function saveInnovationSnapshot(
 
   // 写入 JSON 文件（格式化输出）
   const content = JSON.stringify(snapshots, null, 2);
-  await fs.writeFile(filePath, content, 'utf-8');
+  // 原子写入（REQ-016）
+  await atomicWriteFile(filePath, content, { mkdir: false });
 }
 
 /**

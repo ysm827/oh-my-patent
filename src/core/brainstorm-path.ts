@@ -1,11 +1,15 @@
 /**
  * BrainstormPath - 头脑风暴路径数据结构
- * 
+ *
  * 用于记录头脑风暴过程中的完整演进路径，支持：
  * - 多轮迭代追踪
  * - 关键节点回溯
  * - 创新点演化路径
  */
+
+// Type-only import: erased at runtime, so this does not create a cycle with
+// path-graph.js (which imports the domain types below).
+import type { EdgeType } from './path-graph.js';
 
 // ============================================================================
 // 核心类型定义
@@ -91,6 +95,12 @@ export interface InnovationSnapshot {
   differences: string[];  // 差异点
   status: InnovationStatus;
   mergedInto?: string;    // 如果被合并，记录合并到哪个方案
+  /**
+   * 归档原因与时间（REQ-026）。archiveInnovation() 持久化这两个字段，
+   * 重启后仍可读回；restoreInnovation() 恢复时清除。
+   */
+  archiveReason?: string;
+  archivedAt?: string;
 }
 
 // ============================================================================
@@ -136,6 +146,12 @@ export interface BrainstormEdge {
   fromNodeId: string;
   toNodeId: string;
   transformation: Transformation;
+  /**
+   * Graph edge type (REQ-020). Optional so that path.json files written
+   * before the field existed stay valid; those round-trip as 'DERIVES_FROM',
+   * exactly what the previous implementation assumed for every edge.
+   */
+  type?: EdgeType;
 }
 
 // ============================================================================
@@ -211,6 +227,17 @@ export interface BrainstormPath {
 // ============================================================================
 
 /**
+ * 生成路径 ID（REQ-041）。
+ *
+ * 旧实现只用 `Date.now()`：同一毫秒内创建两条路径会得到**相同 ID**，
+ * 随后 `savePath()` 互相覆盖，静默丢失一条路径。这里保留时间戳前缀
+ * （可读、可排序），追加随机后缀保证唯一性。
+ */
+export function generatePathId(now: number = Date.now()): string {
+  return `path-${now}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
  * 创建初始路径
  */
 export function createInitialPath(
@@ -218,7 +245,7 @@ export function createInitialPath(
   topic: string
 ): BrainstormPath {
   const now = new Date().toISOString();
-  const pathId = `path-${Date.now()}`;
+  const pathId = generatePathId();
   
   return {
     id: pathId,
@@ -319,14 +346,76 @@ export function createInnovationScore(
 // 类型守卫
 // ============================================================================
 
+/** REQ-021: nested-shape checks shared by the path and node guards. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isValidTransformation(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    ['refine', 'merge', 'split', 'pivot'].includes(value.type as string) &&
+    typeof value.description === 'string' &&
+    Array.isArray(value.changes)
+  );
+}
+
+function isValidBrainstormEdge(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.fromNodeId === 'string' &&
+    typeof value.toNodeId === 'string' &&
+    isValidTransformation(value.transformation)
+  );
+}
+
+function isValidInnovationSnapshot(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.problem === 'string' &&
+    Array.isArray(value.coreSolution) &&
+    Array.isArray(value.differences) &&
+    ['active', 'merged', 'abandoned'].includes(value.status as string) &&
+    (value.mergedInto === undefined || typeof value.mergedInto === 'string') &&
+    (value.archiveReason === undefined || typeof value.archiveReason === 'string') &&
+    (value.archivedAt === undefined || typeof value.archivedAt === 'string')
+  );
+}
+
+function isValidInnovationScore(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.innovationId === 'string' &&
+    Number.isFinite(value.novelty) &&
+    Number.isFinite(value.creativity) &&
+    Number.isFinite(value.practicality) &&
+    Number.isFinite(value.businessValue) &&
+    Number.isFinite(value.weightedScore)
+  );
+}
+
+function isValidRoundDecision(value: unknown): boolean {
+  if (!isRecord(value)) return false; // also rejects null: typeof null === 'object'
+  return (
+    ['ITERATE', 'PASS_TO_DRAFT', 'FORCE_PASS'].includes(value.action as string) &&
+    typeof value.reason === 'string' &&
+    Array.isArray(value.recommendations)
+  );
+}
+
 /**
  * 验证是否为有效的 BrainstormPath
+ *
+ * REQ-021: node ids and edge shapes are validated, not just the array shells.
  */
 export function isValidBrainstormPath(data: unknown): data is BrainstormPath {
   if (typeof data !== 'object' || data === null) return false;
-  
+
   const path = data as Record<string, unknown>;
-  
+
   return (
     typeof path.id === 'string' &&
     typeof path.projectId === 'string' &&
@@ -334,26 +423,36 @@ export function isValidBrainstormPath(data: unknown): data is BrainstormPath {
     typeof path.createdAt === 'string' &&
     ['active', 'completed', 'abandoned'].includes(path.status as string) &&
     Array.isArray(path.nodes) &&
+    path.nodes.every((nodeId) => typeof nodeId === 'string') &&
     Array.isArray(path.edges) &&
-    typeof path.currentNodeId === 'string'
+    path.edges.every((edge) => isValidBrainstormEdge(edge)) &&
+    typeof path.currentNodeId === 'string' &&
+    (path.finalDecision === undefined || isRecord(path.finalDecision))
   );
 }
 
 /**
  * 验证是否为有效的 BrainstormNode
+ *
+ * REQ-021: `round` must be a finite number (NaN/Infinity are rejected) and
+ * the nested `innovations` / `scores` / `decision` structures are validated
+ * item by item.
  */
 export function isValidBrainstormNode(data: unknown): data is BrainstormNode {
   if (typeof data !== 'object' || data === null) return false;
-  
+
   const node = data as Record<string, unknown>;
-  
+
   return (
     typeof node.id === 'string' &&
     typeof node.round === 'number' &&
+    Number.isFinite(node.round) &&
     Array.isArray(node.agentOutputs) &&
     Array.isArray(node.innovations) &&
+    node.innovations.every((item) => isValidInnovationSnapshot(item)) &&
     Array.isArray(node.scores) &&
-    typeof node.decision === 'object' &&
+    node.scores.every((item) => isValidInnovationScore(item)) &&
+    isValidRoundDecision(node.decision) &&
     typeof node.timestamp === 'string'
   );
 }

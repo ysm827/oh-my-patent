@@ -12,10 +12,12 @@
 
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
+import { parseJsonc as parseJsoncContent } from '../core/jsonc.js';
 import {
   PortableDef, AgentDef, AgentRole, AgentPermissions,
   SkillDef, CommandDef, MCPServerDef, PluginConfig
 } from './types.js';
+import { GENERATED_MARKER } from './generated-marker.js';
 
 // ============================================================================
 // Frontmatter parser
@@ -46,17 +48,40 @@ function parseFrontmatter(content: string): { frontmatter: OpenCodeFrontmatter; 
   return { frontmatter: {}, body: content };
 }
 
+/**
+ * Strip one layer of YAML quoting from a scalar value.
+ *
+ * The adapters write strings with `JSON.stringify`, so `description: "x"` is
+ * the normal on-disk form. Returning the raw text would make every reload add
+ * a quoting layer (`"x"` → `"\"x\""` → …), which is both unbounded growth and
+ * the reason `adapt uninstall` could no longer match its own output (REQ-050).
+ */
+function unquoteYamlScalar(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try {
+      return JSON.parse(trimmed) as string;
+    } catch {
+      return trimmed.slice(1, -1);
+    }
+  }
+  if (trimmed.length >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'")) {
+    return trimmed.slice(1, -1).replace(/''/g, "'");
+  }
+  return trimmed;
+}
+
 function parseYamlFrontmatter(raw: string): OpenCodeFrontmatter {
   const fm: OpenCodeFrontmatter = {};
 
   for (const line of raw.split('\n')) {
     const trimmed = line.trim();
     if (trimmed.startsWith('description:')) {
-      fm.description = trimmed.slice('description:'.length).trim();
+      fm.description = unquoteYamlScalar(trimmed.slice('description:'.length));
     } else if (trimmed.startsWith('mode:')) {
       fm.mode = trimmed.slice('mode:'.length).trim();
     } else if (trimmed.startsWith('model:')) {
-      fm.model = trimmed.slice('model:'.length).trim();
+      fm.model = unquoteYamlScalar(trimmed.slice('model:'.length));
     } else if (trimmed.startsWith('temperature:')) {
       fm.temperature = parseFloat(trimmed.slice('temperature:'.length).trim());
     }
@@ -70,6 +95,30 @@ function parseYamlFrontmatter(raw: string): OpenCodeFrontmatter {
       const tMatch = tLine.trim().match(/^([\w][\w*-]*):\s*(\w+)$/);
       if (tMatch) {
         fm.tools[tMatch[1]] = tMatch[2] === 'true';
+      }
+    }
+  }
+
+  // Parse the OpenCode-native `permission:` block, which is what the opencode
+  // adapter emits (`edit` / `bash` unchanged, and a folded `write`). Without
+  // this the loader silently dropped every permission on reload (REQ-050).
+  const permissionMatch = raw.match(/^permission[s]?:\s*\n((?:[ \t]+[\w*][\w*-]*:[ \t]*\w+[ \t]*\n?)*)/m);
+  if (permissionMatch) {
+    for (const pLine of permissionMatch[1].split('\n')) {
+      const pMatch = pLine.trim().match(/^([\w][\w*-]*):\s*(\w+)$/);
+      if (!pMatch) {
+        continue;
+      }
+      const [, key, value] = pMatch;
+      // `task` and `skill` have no portable counterpart: the agent's role and
+      // the workflow definition own those decisions, not the workspace file.
+      if (key === 'task' || key === 'skill') {
+        continue;
+      }
+      fm.tools = fm.tools ?? {};
+      fm.tools[key] = value === 'allow' || value === 'true';
+      if (key === 'mcp') {
+        fm.tools['mcp*'] = fm.tools[key];
       }
     }
   }
@@ -157,52 +206,11 @@ function parseHtmlCommentFrontmatter(content: string): { fm: OpenCodeFrontmatter
 // Plugin.jsonc parser (strip comments while respecting strings)
 // ============================================================================
 
-function parseJsonc(filePath: string): unknown {
-  const content = readFileSync(filePath, 'utf-8');
-
-  // Stateful comment removal that respects string literals
-  let result = '';
-  let i = 0;
-  let inString = false;
-
-  while (i < content.length) {
-    const ch = content[i];
-    const next = content[i + 1];
-
-    if (inString) {
-      result += ch;
-      if (ch === '\\') {
-        i++;
-        if (i < content.length) {
-          result += content[i];
-        }
-      } else if (ch === '"') {
-        inString = false;
-      }
-      i++;
-    } else if (ch === '"') {
-      inString = true;
-      result += ch;
-      i++;
-    } else if (ch === '/' && next === '/') {
-      // Single-line comment — skip to end of line
-      while (i < content.length && content[i] !== '\n') {
-        i++;
-      }
-    } else if (ch === '/' && next === '*') {
-      // Multi-line comment — skip to */
-      i += 2;
-      while (i < content.length - 1 && !(content[i] === '*' && content[i + 1] === '/')) {
-        i++;
-      }
-      i += 2;
-    } else {
-      result += ch;
-      i++;
-    }
-  }
-
-  return JSON.parse(result);
+// The comment-stripping state machine itself lives in src/core/jsonc.ts —
+// the single implementation shared with init-checker and the e2e suite
+// (REQ-015). This wrapper keeps the historical file-path signature.
+function parseJsoncFile(filePath: string): unknown {
+  return parseJsoncContent(readFileSync(filePath, 'utf-8'));
 }
 
 // ============================================================================
@@ -217,42 +225,69 @@ interface PluginAgentEntry {
 }
 
 /**
- * Dedup key: plugin.jsonc agents use short IDs (archimedes, patent-architect)
- * while .opencode/agent/ uses kebab-case (patent-innovation-architect).
- * We treat .opencode/agent/ as the authoritative source; plugin.jsonc
- * agents are only added if they have no counterpart there.
+ * List the `.md` files in an agent directory.
+ *
+ * Returns an empty list when the directory is absent or unreadable. Both mean
+ * "no workspace-level agent overrides" — the expected state on a clean clone —
+ * so they are a normal condition rather than an error.
  */
-const PLUGIN_TO_OPENCODE_MAP: Record<string, string> = {
-  // archimedes is now the canonical ID in both plugin.jsonc and .opencode/agent/
-  // patent-architect, patent-scout, patent-evaluator, patent-writer, patent-reviewer
-  // from plugin.jsonc have NO exact .opencode/agent/ counterpart by ID,
-  // so they'll be added as standalone agents.
-};
+function listAgentFiles(dir: string): string[] {
+  if (!existsSync(dir)) {
+    return [];
+  }
+  try {
+    return readdirSync(dir).filter((f: string) => f.endsWith('.md'));
+  } catch {
+    return [];
+  }
+}
 
-function loadAgents(pluginDir: string, pluginAgents: PluginAgentEntry[]): AgentDef[] {
+/**
+ * Load agent definitions from two sources, in priority order:
+ *
+ * 1. `<workspaceDir>/.opencode/agent/*.md` — hand-authored workspace overrides
+ *    with YAML frontmatter. These win when present, because they carry the full
+ *    OpenCode tool and permission surface.
+ * 2. `plugin.jsonc` + `src/agents/*.md` — the portable, tracked source of truth,
+ *    and the authoritative source for this repository. The `.opencode/` tree is
+ *    a workspace-level artifact and is deliberately not committed, so a clean
+ *    clone always takes this path and must still produce every agent declared
+ *    in `plugin.jsonc`.
+ *
+ * Files carrying `GENERATED_MARKER` are skipped in step 1. That is deliberate:
+ * `adapt install --tool opencode` writes its generated agents into exactly this
+ * directory, so on any installed workspace most — or all — of these files are
+ * our own output rather than a user override. Reading them back made the
+ * definition drift on every install/uninstall cycle (REQ-050): descriptions
+ * gained a quoting layer, permissions collapsed to `false`, and
+ * `adapt uninstall` could no longer recognise the files it had written. A file
+ * the user wrote by hand has no marker, so it still wins exactly as before.
+ *
+ * Falling back to source 2 is silent by design: a missing `.opencode/agent/`
+ * is not an error.
+ */
+function loadAgents(pluginDir: string, workspaceDir: string, pluginAgents: PluginAgentEntry[]): AgentDef[] {
   const agents: AgentDef[] = [];
   const seenIds = new Set<string>();
 
-  // 1. Load from .opencode/agent/ (authoritative, has full prompt + frontmatter)
-  const opencodeAgentDir = resolve(pluginDir, '..', '.opencode', 'agent');
-  if (existsSync(opencodeAgentDir)) {
-    const files = readdirSync(opencodeAgentDir).filter((f: string) => f.endsWith('.md'));
-
-    for (const file of files) {
+  // 1. Load hand-authored overrides from .opencode/agent/ (when present)
+  const opencodeAgentDir = resolve(workspaceDir, '.opencode', 'agent');
+  const opencodeAgentFiles = listAgentFiles(opencodeAgentDir);
+  if (opencodeAgentFiles.length > 0) {
+    for (const file of opencodeAgentFiles) {
       const filePath = join(opencodeAgentDir, file);
       const content = readFileSync(filePath, 'utf-8');
+      if (content.includes(GENERATED_MARKER)) {
+        continue;
+      }
       const { frontmatter, body } = parseFrontmatter(content);
 
       const agentId = file.replace('.md', '');
       seenIds.add(agentId);
 
-      // Check if this agent maps to a plugin.jsonc entry
-      const pluginEntry = pluginAgents.find(a => {
-        if (a.id === agentId) return true;
-        // Check reverse mapping
-        const mapped = PLUGIN_TO_OPENCODE_MAP[a.id];
-        return mapped === agentId;
-      });
+      // plugin.jsonc entries sharing this ID are already covered — the
+      // workspace file wins (step 2 below skips them via seenIds).
+      const pluginEntry = pluginAgents.find(a => a.id === agentId);
 
       let role: AgentRole = 'subagent';
       if (frontmatter.mode === 'primary') {
@@ -282,10 +317,8 @@ function loadAgents(pluginDir: string, pluginAgents: PluginAgentEntry[]): AgentD
 
   // 2. Add plugin.jsonc agents NOT covered by .opencode/agent/
   for (const a of pluginAgents) {
-    // Skip if the ID was already loaded, or if it maps to an opencode agent
+    // Skip if the ID was already loaded from a workspace file
     if (seenIds.has(a.id)) continue;
-    const mappedOpencodeId = PLUGIN_TO_OPENCODE_MAP[a.id];
-    if (mappedOpencodeId && seenIds.has(mappedOpencodeId)) continue;
 
     // Try to read prompt content from the plugin's own agent files
     const promptPath = join(pluginDir, a.file);
@@ -325,12 +358,45 @@ function loadAgents(pluginDir: string, pluginAgents: PluginAgentEntry[]): AgentD
 // Load MCP servers from opencode.jsonc
 // ============================================================================
 
-function loadMCPServers(opencodeConfigPath: string): MCPServerDef[] {
-  if (!existsSync(opencodeConfigPath)) {
+/**
+ * Candidate file names for the MCP definition, in priority order.
+ *
+ * The repository tracks only `opencode.jsonc.example` — a portable template
+ * whose commands use placeholders instead of machine paths. A real
+ * `opencode.jsonc` (the user's own, with local paths filled in) always wins
+ * when present.
+ */
+export const MCP_CONFIG_CANDIDATES = ['opencode.jsonc', 'opencode.jsonc.example'] as const;
+
+/**
+ * Resolve which MCP definition file to read.
+ *
+ * Real configuration beats the template: every candidate name is searched
+ * across all directories before moving to the next name. Within one name,
+ * directories are tried in the order given (workspace before plugin root, so a
+ * user's own config overrides the one shipped inside the package).
+ *
+ * @param dirs Directories to search, most specific first
+ * @returns    The first existing path, or null when nothing matches
+ */
+export function resolveMCPConfigPath(dirs: string[]): string | null {
+  for (const name of MCP_CONFIG_CANDIDATES) {
+    for (const dir of dirs) {
+      const candidate = join(dir, name);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+}
+
+function loadMCPServers(configPath: string | null): MCPServerDef[] {
+  if (!configPath) {
     return [];
   }
 
-  const config = parseJsonc(opencodeConfigPath) as { mcp?: Record<string, unknown> };
+  const config = parseJsoncFile(configPath) as { mcp?: Record<string, unknown> };
   const servers: MCPServerDef[] = [];
 
   if (config.mcp) {
@@ -373,7 +439,7 @@ export async function loadPortableDef(options: LoaderOptions): Promise<PortableD
 
   // 1. Parse plugin.jsonc
   const pluginJsoncPath = join(pluginDir, 'plugin.jsonc');
-  const plugin = parseJsonc(pluginJsoncPath) as {
+  const plugin = parseJsoncFile(pluginJsoncPath) as {
     name: string;
     version: string;
     agents?: PluginAgentEntry[];
@@ -382,8 +448,8 @@ export async function loadPortableDef(options: LoaderOptions): Promise<PortableD
     config?: Record<string, unknown>;
   };
 
-  // 2. Load agents (merge plugin.jsonc + .opencode/agent/)
-  const agents = loadAgents(pluginDir, plugin.agents ?? []);
+  // 2. Load agents (workspace .opencode/agent/ overrides, plugin.jsonc fills)
+  const agents = loadAgents(pluginDir, workspaceDir, plugin.agents ?? []);
 
   // 3. Load skills
   const skills: SkillDef[] = (plugin.skills ?? []).map(s => {
@@ -408,9 +474,11 @@ export async function loadPortableDef(options: LoaderOptions): Promise<PortableD
     };
   });
 
-  // 5. Load MCP servers from workspace opencode.jsonc
-  const opencodeConfigPath = join(workspaceDir, 'opencode.jsonc');
-  const mcpServers = loadMCPServers(opencodeConfigPath);
+  // 5. Load MCP servers — a real opencode.jsonc anywhere beats the shipped
+  //    .example template, so a clean clone yields the template's servers
+  //    instead of an empty list.
+  const mcpConfigPath = resolveMCPConfigPath([workspaceDir, pluginDir]);
+  const mcpServers = loadMCPServers(mcpConfigPath);
 
   // 6. Config schema
   const config: PluginConfig = {};

@@ -72,7 +72,9 @@ function formatFigureReference(spec: FigureSpec): string {
  * 生成全部图的 Markdown 引用内容
  */
 function formatAllFigureReferences(specs: FigureSpec[]): string {
-  return specs
+  // REQ-025: sort a copy — the previous in-place `.sort()` mutated the
+  // caller's array as a hidden side effect.
+  return [...specs]
     .sort((a, b) => a.figureNumber - b.figureNumber)
     .map(spec => formatFigureReference(spec))
     .join('\n');

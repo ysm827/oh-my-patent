@@ -1,3 +1,5 @@
+import { join } from 'path';
+
 export interface ConsistencyResult {
   consistent: boolean;
   missing: string[];
@@ -25,7 +27,9 @@ export function validateConsistency(
   if (stages && stages[currentStage]) {
     const stageArtifacts = stages[currentStage].artifacts || [];
     for (const artifact of stageArtifacts) {
-      const artifactPath = projectPath ? `${projectPath}/${artifact}` : artifact;
+      // REQ-023: string interpolation with a hardcoded `/` produced mixed
+      // separators on Windows (`projects\01-x/MAIN.md`); path.join normalizes.
+      const artifactPath = projectPath ? join(projectPath, artifact) : artifact;
       if (!fileExists(artifactPath)) {
         missing.push(artifact);
       }

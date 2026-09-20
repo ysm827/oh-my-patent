@@ -25,8 +25,10 @@ import {
   existsSync, readdirSync, rmdirSync, rmSync,
 } from 'fs';
 import {
-  PortableDef, AgentDef, CommandDef, SkillDef, ToolAdapter, GenerateResult
+  PortableDef, AgentDef, CommandDef, SkillDef, ToolAdapter, GenerateResult, UninstallResult
 } from '../types.js';
+import { WORKFLOW_STAGE_ORDER } from '../../core/workflow.js';
+import { stampGenerated } from '../generated-marker.js';
 
 // ============================================================================
 // Codex adapter
@@ -49,9 +51,7 @@ export class CodexAdapter implements ToolAdapter {
 
     for (const command of def.commands) {
       files.set(join('.codex', 'commands', `${command.id}.md`), this.generateCommandPrompt(command));
-      const skillId = def.agents.some(agent => agent.id === command.id)
-        ? `${command.id}-command`
-        : command.id;
+      const skillId = this.commandSkillId(def, command);
       files.set(join(pluginRoot, 'skills', skillId, 'SKILL.md'), this.generateCommandSkill(command, skillId));
     }
 
@@ -107,7 +107,6 @@ export class CodexAdapter implements ToolAdapter {
     const lines: string[] = [];
     lines.push(`# ${agent.name}`);
     lines.push('');
-    lines.push('<!-- Generated for Codex by oh-my-patent. -->');
     lines.push(`<!-- Agent: ${agent.id} | Role: ${agent.role} -->`);
     lines.push(`<!-- Permissions: ${formatPermissions(agent.permissions)} -->`);
     if (agent.model) lines.push(`<!-- model: ${agent.model} -->`);
@@ -129,14 +128,13 @@ export class CodexAdapter implements ToolAdapter {
     lines.push('');
     lines.push(agent.promptContent.trim() || agent.description || agent.name);
     lines.push('');
-    return lines.join('\n');
+    return stampGenerated(lines.join('\n'));
   }
 
   private generateCommandPrompt(command: CommandDef): string {
     const lines: string[] = [];
     lines.push(`# ${command.name}`);
     lines.push('');
-    lines.push('<!-- Generated for Codex by oh-my-patent. -->');
     lines.push(`<!-- Command: ${command.id} -->`);
     lines.push('');
     lines.push(command.description);
@@ -149,7 +147,7 @@ export class CodexAdapter implements ToolAdapter {
     lines.push('');
     lines.push(command.promptContent?.trim() || command.description);
     lines.push('');
-    return lines.join('\n');
+    return stampGenerated(lines.join('\n'));
   }
 
   private generateSkillPrompt(skill: SkillDef): string {
@@ -162,11 +160,11 @@ export class CodexAdapter implements ToolAdapter {
     ].join('\n');
 
     if (/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.test(content)) {
-      return content + '\n';
+      return stampGenerated(content + '\n');
     }
 
     const description = skill.description || `Use when the patent workflow needs the ${skill.name} capability.`;
-    return [
+    return stampGenerated([
       '---',
       `name: ${skill.id}`,
       `description: ${JSON.stringify(description)}`,
@@ -174,11 +172,11 @@ export class CodexAdapter implements ToolAdapter {
       '',
       content,
       '',
-    ].join('\n');
+    ].join('\n'));
   }
 
   private generateCommandSkill(command: CommandDef, skillId = command.id): string {
-    return [
+    return stampGenerated([
       '---',
       `name: ${skillId}`,
       `description: Use when the user invokes ${command.name} or asks to ${command.description}.`,
@@ -190,11 +188,11 @@ export class CodexAdapter implements ToolAdapter {
       '',
       command.promptContent?.trim() || command.description,
       '',
-    ].join('\n');
+    ].join('\n'));
   }
 
   private generateAgentSkill(agent: AgentDef): string {
-    return [
+    return stampGenerated([
       '---',
       `name: ${agent.id}`,
       `description: Use when the patent workflow needs the ${agent.name} specialist role: ${agent.description}`,
@@ -206,13 +204,13 @@ export class CodexAdapter implements ToolAdapter {
       '',
       agent.promptContent.trim() || agent.description || agent.name,
       '',
-    ].join('\n');
+    ].join('\n'));
   }
 
   private generateOverviewSkill(def: PortableDef): string {
     const commands = def.commands.map(c => `- \`${c.name}\`: ${c.description}`).join('\n');
     const agents = def.agents.map(a => `- \`${a.id}\`: ${a.description}`).join('\n');
-    return [
+    return stampGenerated([
       '---',
       'name: oh-my-patent',
       'description: Use for patent disclosure drafting workflows, including /patent-new, /patent-search, brainstorming, drafting, review, and patent diagrams.',
@@ -237,14 +235,17 @@ export class CodexAdapter implements ToolAdapter {
       '- Persist specialist outputs in `references/` with standardized filenames.',
       '- Do not simulate unavailable specialists; when native agent delegation is unavailable, explicitly execute the matching specialist skill context and persist the result.',
       '',
-    ].join('\n');
+    ].join('\n'));
   }
 
   private generatePluginJson(def: PortableDef): string {
     const pluginJson = {
       name: this.pluginName,
       version: def.version,
-      description: 'Patent disclosure drafting workflow with specialist prompts, commands, and brainstorm path tracking for Codex.',
+      // REQ-034: description 与 package.json 的母本保持一致
+      //（"Patent disclosure drafting workflow with brainstorm path tracking."）；
+      // Codex 特定的上下文由 shortDescription 承载。
+      description: 'Patent disclosure drafting workflow with brainstorm path tracking.',
       author: {
         name: 'oh-my-patent',
       },
@@ -352,10 +353,17 @@ export class CodexAdapter implements ToolAdapter {
       $schema: 'https://oh-my-patent.local/schemas/codex-adapter.json',
       generatedBy: 'oh-my-patent',
       adapter: 'codex',
-      model: 'o4-mini',
-      provider: 'openai',
+      // REQ-031: `model`/`provider` below are EXAMPLE defaults, kept in sync
+      // with what the Codex CLI documents; they can be overridden through the
+      // plugin config (`codexModel` / `codexProvider` fields, when declared in
+      // plugin.jsonc) or by editing the generated codex.json by hand.
+      model: (config.codexModel as string) ?? 'o4-mini',
+      provider: (config.codexProvider as string) ?? 'openai',
+      // REQ-031: `sandbox: false` was a safety regression — it asked wrappers
+      // to run Codex without a sandbox. `workspace-write` is the conservative
+      // default: writes stay inside the workspace, network/exec stay gated.
+      sandbox: 'workspace-write',
       approvalMode: 'suggest',
-      sandbox: false,
       instructionsFile: 'AGENTS.md',
       promptCatalog: {
         agentsDir: '.codex/agents',
@@ -489,7 +497,8 @@ export class CodexAdapter implements ToolAdapter {
     lines.push('### Workflow State Machine');
     lines.push('');
     lines.push('```');
-    lines.push('INIT → RESEARCH → BRAINSTORM_R1 → BRAINSTORM_R2 → DRAFT → QA_LOOP → FINAL_REVIEW → DIAGRAM → DONE');
+    // 由 WorkflowStage 派生，避免与状态机漂移（REQ-012）
+    lines.push(WORKFLOW_STAGE_ORDER.join(' → '));
     lines.push('```');
     lines.push('');
     lines.push('- QA_LOOP can transition back to DRAFT');
@@ -581,6 +590,26 @@ export class CodexAdapter implements ToolAdapter {
     return lines.join('\n');
   }
 
+  /**
+   * Skill directory name for a command.
+   *
+   * `archimedes` is both an agent and a command id, so a command whose id is
+   * already taken by an agent would otherwise overwrite that agent's skill
+   * directory. Commands therefore get a `-command` suffix on collision.
+   *
+   * This MUST stay the single source of truth: `generate()` writes the file and
+   * `getGeneratedFilePaths()` reports it, and when the two computed the name
+   * independently they disagreed — `generate()` produced
+   * `skills/archimedes-command/SKILL.md` while the listing claimed
+   * `skills/archimedes/SKILL.md`, so uninstall left the real file behind
+   * (REQ-006).
+   */
+  private commandSkillId(def: PortableDef, command: CommandDef): string {
+    return def.agents.some((agent) => agent.id === command.id)
+      ? `${command.id}-command`
+      : command.id;
+  }
+
   getGeneratedFilePaths(def: PortableDef): string[] {
     const paths: string[] = [];
     const pluginRoot = join('plugins', this.pluginName);
@@ -591,7 +620,7 @@ export class CodexAdapter implements ToolAdapter {
     }
     for (const command of def.commands) {
       paths.push(join('.codex', 'commands', `${command.id}.md`));
-      paths.push(join(pluginRoot, 'skills', command.id, 'SKILL.md'));
+      paths.push(join(pluginRoot, 'skills', this.commandSkillId(def, command), 'SKILL.md'));
     }
     for (const skill of def.skills) {
       paths.push(join('.codex', 'skills', skill.id, 'SKILL.md'));
@@ -608,7 +637,30 @@ export class CodexAdapter implements ToolAdapter {
     return paths;
   }
 
-  async uninstall(def: PortableDef, workspaceDir: string): Promise<{ filesRemoved: string[]; filesSkipped: string[]; success: boolean; message: string }> {
+  /**
+   * Directories scanned by `adapt install --prune`.
+   *
+   * Deliberately independent of `def`: the point is to find files an older
+   * definition produced, so the list cannot be derived from the current one.
+   * Single files such as `codex.json`, `AGENTS.md` and the marketplace manifest
+   * are rewritten on every run and are not listed here.
+   *
+   * `.agents/plugins` is included for completeness. Its manifest carries no
+   * generated marker, so pruning preserves it — see `pruneGeneratedFiles`.
+   */
+  getManagedDirectories(): string[] {
+    const pluginRoot = join('plugins', this.pluginName);
+    return [
+      join('.codex', 'agents'),
+      join('.codex', 'commands'),
+      join('.codex', 'skills'),
+      join(pluginRoot, 'skills'),
+      join(pluginRoot, 'agents'),
+      join('.agents', 'plugins'),
+    ];
+  }
+
+  async uninstall(def: PortableDef, workspaceDir: string): Promise<UninstallResult> {
     const filesRemoved: string[] = [];
     const filesSkipped: string[] = [];
 

@@ -70,6 +70,8 @@ import {
   ThresholdConfig,
 } from './core/threshold-config.js';
 import { loadPortableDef } from './adapters/loader.js';
+import { runAdaptGenerate } from './adapters/run-generate.js';
+import { pruneGeneratedFiles } from './adapters/prune.js';
 import { ClaudeCodeAdapter } from './adapters/claude/index.js';
 import { CodexAdapter } from './adapters/codex/index.js';
 import { OpenCodeAdapter } from './adapters/opencode/index.js';
@@ -85,12 +87,15 @@ import { runFullCheck, formatReport, runJsonCheck, getMcpStatuses, buildMcpConfi
 // ============================================================================
 
 function getPluginDir(): string {
-  // In ESM, resolve from the current module URL to find the package root (contains plugin.jsonc)
-  // This works when the package is:
-  // - Globally installed (npm i -g)              → cli.js is a real file in the npm package
-  // - Linked (npm link)                         → cli.js is a symlink; realpath resolves it
-  // - Run from source (node dist/cli.js)        → cwd is the package root
-  // - Published npm tarball                     → cwd is the package root because npm extracts it
+  // The package root is derived from THIS MODULE'S OWN URL, never from cwd:
+  // cli.js lives in `<root>/dist/`, so the parent of this module's directory is
+  // the root that holds plugin.jsonc. That makes the answer identical whether
+  // the CLI is globally installed, linked, run as `node dist/cli.js` from an
+  // unrelated directory, or unpacked from the published tarball.
+  //
+  // (An earlier comment claimed cwd was used for the last two cases. It was
+  // never true, and it is the kind of comment that makes a wrong default look
+  // intentional — see REQ-008.)
   const fromEsm = fileURLToPath(new URL('.', import.meta.url));
   return dirname(fromEsm);
 }
@@ -386,48 +391,37 @@ const adapters: ToolAdapter[] = [
 const adapterMap = new Map<string, ToolAdapter>(adapters.map(a => [a.name, a]));
 
 async function adaptGenerate(pluginDir: string, opts: Record<string, string>): Promise<void> {
-  const toolName = opts.tool || '';
-  const outputDir = opts.output || '';
-  const workspaceDir = opts['workspace-dir'] || resolve(pluginDir, '..');
+  // Default to the user's cwd, never the package's parent directory: with a
+  // global install the latter is `.../node_modules`, and files would be
+  // written there (REQ-008).
+  const workspaceDir = opts['workspace-dir']
+    ? resolve(opts['workspace-dir'])
+    : getDefaultWorkspaceDir();
 
-  // If no tool specified, generate for all adapters
-  const targets = toolName ? [toolName] : Array.from(adapterMap.keys());
-
-  for (const name of targets) {
-    const adapter = adapterMap.get(name);
-    if (!adapter) {
-      exitWithError(`Unknown adapter: ${name}. Available: ${Array.from(adapterMap.keys()).join(', ')}`);
-    }
-
-    const def = await loadPortableDef({ pluginDir, workspaceDir });
-
-    // Resolve config defaults
-    const config: Record<string, unknown> = {};
-    for (const [key, field] of Object.entries(def.config)) {
-      config[key] = field.default;
-    }
-
-    const result = await adapter.generate(def, config);
-
-    const targetDir = outputDir || resolve(pluginDir, 'plugins', name);
-    let fileCount = 0;
-    for (const [relPath, content] of result.files) {
-      const fullPath = resolve(targetDir, relPath);
-      const dir = resolve(fullPath, '..');
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-      }
-      writeFileSync(fullPath, content, 'utf-8');
-      fileCount++;
-    }
-
-    console.log(JSON.stringify({ ok: true, adapter: name, files: fileCount, output: targetDir }));
+  // Core loop lives in run-generate.ts so the "one loadPortableDef call for
+  // every target" guarantee is unit-testable (REQ-027). Unknown adapters are
+  // reported with the historical exitWithError wording.
+  try {
+    await runAdaptGenerate({
+      pluginDir,
+      workspaceDir,
+      toolName: opts.tool || '',
+      outputDir: opts.output || '',
+      adapters,
+    });
+  } catch (err) {
+    exitWithError(err instanceof Error ? err.message : String(err));
   }
 }
 
 async function adaptInstall(pluginDir: string, opts: Record<string, string>): Promise<void> {
   // Install into the workspace (parent dir) that hosts the patents project
-  const workspaceDir = opts['workspace-dir'] || resolve(pluginDir, '..');
+  // Default to the user's cwd, never the package's parent directory: with a
+  // global install the latter is `.../node_modules`, and files would be
+  // written there (REQ-008).
+  const workspaceDir = opts['workspace-dir']
+    ? resolve(opts['workspace-dir'])
+    : getDefaultWorkspaceDir();
   const toolName = opts.tool || '';
 
   const targets = toolName ? [toolName] : Array.from(adapterMap.keys());
@@ -498,7 +492,26 @@ async function adaptInstall(pluginDir: string, opts: Record<string, string>): Pr
       }
     }
 
-    console.log(JSON.stringify({ ok: true, adapter: name, files: fileCount, installed: workspaceDir }));
+    // Optional: remove output from a previous definition that this run no
+    // longer produces. generate() only writes, and uninstall() derives its
+    // deletion list from the current definition, so neither can do this.
+    const pruneResult = opts.prune === 'true'
+      ? pruneGeneratedFiles(adapter, def, workspaceDir)
+      : null;
+
+    console.log(JSON.stringify({
+      ok: true,
+      adapter: name,
+      files: fileCount,
+      installed: workspaceDir,
+      ...(pruneResult ? { pruned: pruneResult.removed.length } : {}),
+    }));
+    if (pruneResult) {
+      console.error(`oh-my-patent: pruned ${pruneResult.removed.length} stale file(s) for ${name}.`);
+      for (const relPath of pruneResult.removed) {
+        console.error(`  - ${relPath}`);
+      }
+    }
     if (opts._setupHint) {
       console.error(`\noh-my-patent 已安装到本工作区。\n如需卸载，运行：oh-my-patent adapt uninstall --workspace-dir ${workspaceDir}`);
     }
@@ -506,7 +519,12 @@ async function adaptInstall(pluginDir: string, opts: Record<string, string>): Pr
 }
 
 async function adaptUninstall(pluginDir: string, opts: Record<string, string>): Promise<void> {
-  const workspaceDir = opts['workspace-dir'] || resolve(pluginDir, '..');
+  // Default to the user's cwd, never the package's parent directory: with a
+  // global install the latter is `.../node_modules`, and files would be
+  // written there (REQ-008).
+  const workspaceDir = opts['workspace-dir']
+    ? resolve(opts['workspace-dir'])
+    : getDefaultWorkspaceDir();
   const toolName = opts.tool || '';
 
   const targets = toolName ? [toolName] : Array.from(adapterMap.keys());
@@ -651,8 +669,35 @@ async function diagramRerender(projectPath: string, opts: Record<string, string>
   if (!opts.figure) exitWithError('--figure is required (figureId)');
   if (!opts.source) exitWithError('--source is required (Mermaid/PlantUML source text, or @file)');
   if (!opts.engine) {
-    // 自动推断: .mmd 默认 mermaid, .puml 默认 plantuml
-    opts.engine = 'mermaid';
+    // REQ-027: the engine must come from the figure's own record, not a
+    // hardcoded default. Previously `!opts.engine` silently forced 'mermaid',
+    // so re-rendering a PlantUML figure without --engine rendered it with the
+    // wrong engine. Inference order:
+    //   1. figures-manifest.json — the engine the figure was rendered with
+    //   2. the --source file extension (.puml/.pu/.plantuml → plantuml)
+    //   3. mermaid (historical default)
+    let inferred: string | undefined;
+    const manifestPath = join(projectPath, 'figures', 'figures-manifest.json');
+    try {
+      if (existsSync(manifestPath)) {
+        const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+        if (Array.isArray(manifest)) {
+          const entry = manifest.find(
+            (e) => typeof e === 'object' && e !== null &&
+              (e as Record<string, unknown>).figureId === opts.figure
+          ) as Record<string, unknown> | undefined;
+          if (typeof entry?.engine === 'string') {
+            inferred = entry.engine;
+          }
+        }
+      }
+    } catch {
+      // Corrupt manifest: fall through to extension inference.
+    }
+    if (inferred !== 'mermaid' && inferred !== 'plantuml') {
+      inferred = /\.(puml|pu|plantuml)$/i.test(opts.source) ? 'plantuml' : 'mermaid';
+    }
+    opts.engine = inferred;
   }
 
   const engine = opts.engine as 'mermaid' | 'plantuml';
@@ -731,9 +776,9 @@ Diagram subcommands:
     Re-render a single figure with new source, update manifest
 
 Adapt subcommands:
-  generate [--tool <name>] [--output <dir>]                 Generate config to plugins/<tool>/
-  install [--tool <name>] [--workspace-dir <dir>]           Install config into workspace
-  setup  [--tool <name>] [--workspace-dir <dir>]           Alias for install
+  generate [--tool <name>] [--output <dir>]                 Generate config to plugins/<tool>/ (with --output: <dir>/<tool>/)
+  install [--tool <name>] [--workspace-dir <dir>] [--prune]  Install config into workspace
+  setup  [--tool <name>] [--workspace-dir <dir>] [--prune]  Alias for install
   uninstall [--tool <name>] [--workspace-dir <dir>]         Uninstall (remove) config from workspace
 
 Options:
@@ -747,12 +792,14 @@ Options:
   --target <id>         Target ID for visualization/detail
   --output <file>       Output file path (optional)
   --tool <name>         Adapter name: claude-code|codex|opencode (default: all)
-  --workspace-dir <dir> Workspace directory (default: parent of plugin dir)
+  --workspace-dir <dir> Workspace directory (default: current working directory)
   --specs <json|@file>  FigureSpec array (JSON or @file)
   --phase <phase>       Render phase: draft (default) or final
   --figure <id>         Figure ID for re-render
   --source <mmd|@file>  Mermaid/PlantUML source text, or @file
   --engine <engine>     Rendering engine: mermaid (default) or plantuml
+  --prune               install: also delete generated files no longer produced
+                        (only files carrying an oh-my-patent marker)
 `);
     process.exit(0);
   }
@@ -904,7 +951,20 @@ Options:
       if (safeConfig.url && typeof safeConfig.url === 'string') {
         safeConfig.url = safeConfig.url.replace(/apikey=[^&]+/gi, 'apikey=***');
       }
-      console.log(JSON.stringify({ ok: result.success, mcpId, message: result.message, configPath: result.configPath, config: safeConfig }));
+      // The masked copy above only protects the terminal. The file on disk still
+      // holds the key, so the plaintext warning goes to stderr where a human
+      // cannot miss it (REQ-009).
+      console.error(result.warning);
+      console.log(JSON.stringify({
+        ok: result.success,
+        mcpId,
+        message: result.message,
+        configPath: result.configPath,
+        warning: result.warning,
+        gitignoreUpdated: result.gitignoreUpdated,
+        fileMode: result.fileMode,
+        config: safeConfig,
+      }));
     } else {
       const report = runFullCheck({ workspaceDir });
       const formatted = formatReport(report);
